@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import {
   DEFAULT_LLM,
   LLM_PRESETS,
+  explainLlmError,
   needsProxy,
   DEV_LOCKED,
   getApiKey,
@@ -33,6 +34,38 @@ export function SettingsPanel({ open, onClose, onSaved }: Props) {
   const [llm, setLlm] = useState<LlmSettings>(DEFAULT_LLM);
   const [company, setCompany] = useState<CompanyConfig>({});
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState<string>();
+
+  /** 代理地址常见误填：VPN/Clash 的本地端口（127.0.0.1:7890）是正向代理，不是反向代理，POST 过去只会得到 400 */
+  const proxyLooksLikeForwardProxy = (() => {
+    const u = llm.proxyUrl?.trim();
+    if (!u) return false;
+    try {
+      const url = new URL(u);
+      return url.pathname === "/" || /:(7890|7891|7897|1080|8080|8888|10808|10809)$/.test(url.host);
+    } catch {
+      return true;
+    }
+  })();
+
+  const testConnection = async () => {
+    setTesting("连接中…");
+    const base = (llm.proxyUrl?.trim() || llm.baseUrl).replace(/\/+$/, "");
+    try {
+      const r = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key.trim()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: llm.modelId.trim(), messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+      });
+      if (r.ok) setTesting("✅ 连通：端点、Key、模型都对");
+      else {
+        const t = await r.text();
+        setTesting(`❌ HTTP ${r.status}：${explainLlmError(`${r.status} ${t.slice(0, 200)}`, llm)}`);
+      }
+    } catch (e: any) {
+      setTesting(`❌ ${explainLlmError(String(e?.message ?? e), llm)}`);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -92,6 +125,9 @@ export function SettingsPanel({ open, onClose, onSaved }: Props) {
           {needsProxy(llm) && (
             <p class="warn-inline">⚠️ Coding Plan 端点浏览器不能直连，必须填下面的代理地址（部署 proxy/worker.js 后得到的 https://…workers.dev），否则发消息会报 Connection error。</p>
           )}
+          {proxyLooksLikeForwardProxy && (
+            <p class="warn-inline">⚠️ 这个地址看起来是 VPN / Clash 的本地代理端口。它是<b>正向代理</b>（浏览器整体走它上网），不是给页面转发接口的<b>反向代理</b>，填在这里只会得到 400。这里要填的是 Worker 地址（https://…workers.dev）或本机 dev server 的 <code>http://localhost:5173/ark/coding/v3</code>。</p>
+          )}
           <label>
             代理地址（可选）
             <input value={llm.proxyUrl ?? ""} onInput={(e) => setLlm({ ...llm, proxyUrl: (e.target as HTMLInputElement).value })} placeholder="Coding Plan 端点不放行浏览器直连时填 Worker 地址" />
@@ -111,6 +147,8 @@ export function SettingsPanel({ open, onClose, onSaved }: Props) {
 
         <footer>
           <button class="btn btn-primary" onClick={save}>保存</button>
+          <button class="btn" onClick={testConnection} disabled={!key.trim()}>测试连接</button>
+          {testing && <span class="muted" style="margin-left:8px">{testing}</span>}
           {saved && <span class="ok">已保存，下一条消息起生效</span>}
         </footer>
       </aside>
