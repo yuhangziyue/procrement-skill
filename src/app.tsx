@@ -115,7 +115,7 @@ export function App() {
     try {
       await agent.prompt(text);
     } catch (e: any) {
-      setError(e?.message ?? String(e));
+      setError(explainLlmError(e?.message ?? String(e), await getLlmSettings()));
       setBusy(false);
     }
   };
