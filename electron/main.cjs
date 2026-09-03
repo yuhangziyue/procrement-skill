@@ -23,7 +23,39 @@ function createWindow() {
   return win;
 }
 
+/**
+ * 桌面版不需要任何反向代理：主进程能改响应头，浏览器那道 CORS 墙在这里可以直接拆。
+ *
+ * 背景：方舟 Coding Plan 端点（/api/coding/v3）的 CORS 预检不放行 Authorization 头，
+ * 所以网页版必须挂一个 Cloudflare Worker 中转。Electron 里没这个必要——
+ * 请求发出前把 Origin 摘掉（file:// 的 Origin 是 "null"，上游会拒），
+ * 响应回来时把 Access-Control-* 换成放行的值，预检和正式请求都能过。
+ *
+ * 只作用于 http(s) 请求；应用自身的页面走 file://，不受影响。
+ */
+function relaxCorsForApi(session) {
+  const filter = { urls: ["http://*/*", "https://*/*"] };
+  session.webRequest.onBeforeSendHeaders(filter, (details, cb) => {
+    const headers = { ...details.requestHeaders };
+    // file:// 页面发出的 Origin 是字符串 "null"，方舟会直接 403；摘掉当作服务端到服务端的调用
+    delete headers.Origin;
+    delete headers.origin;
+    cb({ requestHeaders: headers });
+  });
+  session.webRequest.onHeadersReceived(filter, (details, cb) => {
+    const headers = { ...details.responseHeaders };
+    // 上游自己带的 CORS 头要先删干净，否则和我们加的叠成 "*,*"，浏览器判非法值照样拒
+    for (const k of Object.keys(headers)) if (k.toLowerCase().startsWith("access-control-")) delete headers[k];
+    headers["Access-Control-Allow-Origin"] = ["*"];
+    headers["Access-Control-Allow-Headers"] = ["*"];
+    headers["Access-Control-Allow-Methods"] = ["GET,POST,PUT,DELETE,OPTIONS"];
+    cb({ responseHeaders: headers });
+  });
+}
+
 app.whenReady().then(async () => {
+  relaxCorsForApi(require("electron").session.defaultSession);
+
   const T = await import("./db.mjs");
   const F = await import("./features.mjs");
 

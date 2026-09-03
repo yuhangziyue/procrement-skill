@@ -1,5 +1,6 @@
 // 设置读写。apiKey 只放 localStorage（导出全量 JSON 时天然不带）；其余放 IndexedDB settings 表。
 import { db } from "./schema";
+import { isDesktop } from "../data/bridge";
 
 export interface CompanyConfig {
   /** 02-u8-basics §0 五个待验项：任一为空 ⇒ 菜单路径类回答自动带 ⚠️ */
@@ -30,21 +31,26 @@ export const DEFAULT_PROXY_URL = "";
 export const LLM_PRESETS: { id: string; label: string; hint: string; value: LlmSettings }[] = [
   {
     id: "coding-plan",
-    label: "方舟 Coding Plan（经代理）",
-    hint: "订阅制、边际成本≈0。Coding Plan 端点不放行浏览器直连，请求经 Worker 代理转一道；Key 仍只在你浏览器里。",
-    value: { baseUrl: ARK_CODING_URL, modelId: "doubao-seed-2.0-pro", proxyUrl: DEFAULT_PROXY_URL || undefined },
+    label: isDesktop() ? "方舟 Coding Plan（桌面版直连）" : "方舟 Coding Plan（经代理）",
+    hint: isDesktop()
+      ? "订阅制、边际成本≈0。桌面版由主进程发请求，不受浏览器 CORS 限制——不用配任何代理。"
+      : "订阅制、边际成本≈0。Coding Plan 端点不放行浏览器直连，请求经 Worker 代理转一道；Key 仍只在你浏览器里。",
+    value: { baseUrl: ARK_CODING_URL, modelId: "doubao-seed-2.0-pro", proxyUrl: isDesktop() ? undefined : DEFAULT_PROXY_URL || undefined },
   },
   {
     id: "ark-standard",
-    label: "方舟标准端点（浏览器直连）",
-    hint: "按 token 计费；需先在方舟控制台开通对应模型。零代理。",
+    label: isDesktop() ? "方舟标准端点（按量计费）" : "方舟标准端点（浏览器直连）",
+    hint: "按 token 计费；需先在方舟控制台开通对应模型。",
     value: { baseUrl: ARK_STANDARD_URL, modelId: "doubao-seed-2.0-pro" },
   },
 ];
 
-// 默认预设：站点还没内置代理地址时，默认走浏览器能直连的标准端点——Coding Plan 端点不配代理必挂（线上 2026-09-03 实测 "Connection error."）。
-// Worker 部署后把 DEFAULT_PROXY_URL 填上，默认就自动切回 Coding Plan。
-const DEFAULT_PRESET = DEFAULT_PROXY_URL ? LLM_PRESETS[0] : LLM_PRESETS[1];
+// 默认预设分两种形态：
+// - 桌面版：主进程会把 CORS 拆掉（见 electron/main.cjs 的 relaxCorsForApi），Coding Plan 直连即可，
+//   而且订阅制边际成本≈0，所以默认就选它——不需要代理、也不需要在方舟开通按量模型。
+// - 网页版：站点还没内置代理地址时只能走标准端点，Coding Plan 不配代理必挂
+//   （线上 2026-09-03 实测 "Connection error."）；Worker 部署后填上 DEFAULT_PROXY_URL 会自动切回。
+const DEFAULT_PRESET = isDesktop() || DEFAULT_PROXY_URL ? LLM_PRESETS[0] : LLM_PRESETS[1];
 export const DEFAULT_LLM: LlmSettings = {
   ...DEFAULT_PRESET.value,
   baseUrl: ENV_BASE?.trim() || DEFAULT_PRESET.value.baseUrl,
@@ -53,6 +59,7 @@ export const DEFAULT_LLM: LlmSettings = {
 
 /** Coding Plan 端点 + 没填代理 ⇒ 浏览器一定连不上；给 UI 用的前置判断 */
 export function needsProxy(s: LlmSettings): boolean {
+  if (isDesktop()) return false; // 桌面版由主进程发请求，没有 CORS 这回事
   return s.baseUrl.startsWith(ARK_CODING_URL) && !s.proxyUrl?.trim() && !(import.meta.env.DEV && typeof location !== "undefined");
 }
 
@@ -65,7 +72,12 @@ export function explainLlmError(msg: string, s?: LlmSettings): string {
       : "网络连不上模型端点：检查网络 / 代理地址是否正确、是否在线。";
   }
   if (/401|authentication|api key/.test(m)) return "Key 无效或格式不对：去「设置」重新粘贴 API Key（方舟 Key 以 ark- 开头）。";
-  if (/404|notfound|does not exist|no access/.test(m)) return "这个模型在当前端点不可用：标准端点需先在方舟控制台开通对应模型；Coding Plan 模型只在 coding 端点可用。";
+  if (/404|notfound|does not exist|no access/.test(m)) {
+    const codingHint = isDesktop()
+      ? "桌面版可以直连 Coding Plan：去「设置」把预设换成「方舟 Coding Plan（桌面版直连）」，不用填代理。"
+      : "Coding Plan 模型只在 coding 端点可用。";
+    return `这个模型在当前端点不可用：标准端点需先在方舟控制台开通对应模型。${codingHint}`;
+  }
   if (/429|rate|quota|1400001/.test(m)) return "触发限流或额度用完，稍后再试。";
   return msg;
 }
