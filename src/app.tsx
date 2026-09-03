@@ -4,7 +4,7 @@ import { db, type EnhancementRow, type FeedbackRow, type SessionRow } from "./db
 import { explainLlmError, getApiKey, getLlmSettings, needsProxy } from "./db/settings";
 import { getFeedbackFor } from "./db/feedback";
 import { findConflicts, saveEnhancement, type EnhancementDraft } from "./db/enhancements";
-import { createAgent } from "./agent/create-agent";
+import { createAgent, sanitizeHistory } from "./agent/create-agent";
 import { seedBuiltinCards } from "./knowledge/seed";
 import { onEnhancementDraft } from "./tools/save-enhancement";
 import { newId } from "./util/id";
@@ -44,7 +44,8 @@ export function App() {
 
   const refreshFeedback = useCallback(async (sessionId: string) => setFeedback(await getFeedbackFor(sessionId)), []);
 
-  const persist = async (sessionId: string, msgs: AgentMessage[]) => {
+  const persist = async (sessionId: string, rawMsgs: AgentMessage[]) => {
+    const msgs = sanitizeHistory(rawMsgs);
     const now = Date.now();
     await db.transaction("rw", db.messages, db.sessions, async () => {
       await db.messages.where("sessionId").equals(sessionId).delete();
