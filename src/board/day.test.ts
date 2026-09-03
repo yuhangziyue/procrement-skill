@@ -35,10 +35,10 @@ describe("八条收工清单", () => {
     expect(evaluateDay([], { handover: true }, BIZ).canClose).toBe(true);
   });
 
-  it("没有日配巡检卡时不判绿，直说是数据没导全", () => {
+  it("没有日配巡检卡时不拦着她收工，但 detail 说清 0 件是怎么来的", () => {
     const r = evaluateDay([], {}, BIZ);
-    expect(item(r, "daily_water").satisfied).toBe(false);
-    expect(item(r, "daily_water").detail).toContain("先去补数据");
+    expect(item(r, "daily_water").satisfied).toBe(true);
+    expect(item(r, "daily_water").detail).toContain("在购-日配");
   });
 });
 
@@ -122,9 +122,9 @@ describe("收工三句话：做了什么 / 卡在哪 / 明天要什么", () => {
   const tasks = [
     card("T1_shortage", { status: "done", materialName: "彩印纸盒A", qty: 6000 }),
     card("T2_addon", { status: "done", materialName: "单片贴纸" }),
-    card("T8_overdue", { status: "done", materialName: "三拼腰封AL", supplier: "时进新材料" }),
+    card("T8_overdue", { status: "done", materialName: "三拼腰封AL", supplier: "示例包材" }),
     card("T6_notice", { status: "done" }),
-    card("T4_unconfirmed", { materialName: "内衬纸托", supplier: "恒达纸品", score: 70 }),
+    card("T4_unconfirmed", { materialName: "内衬纸托", supplier: "样例纸品", score: 70 }),
     card("T1B_late", { materialName: "瓦楞隔板", score: 90, note: "等王主任决定改不改计划" }),
   ];
 
@@ -141,7 +141,7 @@ describe("收工三句话：做了什么 / 卡在哪 / 明天要什么", () => {
     const s = handoverText(tasks, BIZ);
     expect(s).toContain("还卡着 2 条");
     expect(s).toContain("瓦楞隔板（等王主任决定改不改计划）");
-    expect(s).toContain("恒达纸品");
+    expect(s).toContain("样例纸品");
   });
 
   it("第三句给领导选择题，不给问答题", () => {

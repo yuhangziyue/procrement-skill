@@ -19,9 +19,9 @@ function card(p: Partial<BoardTask> & { id: string; score: number }): BoardTask 
 
 /** 一副真实感的牌：三拼腰封逾期、纸盒待回签、纸托在途、贴纸补货 */
 const deck = (): BoardTask[] => [
-  card({ id: "b-纸盒A", score: 62, kind: "T4_unconfirmed", stage: "confirm", supplier: "恒达纸品", materialCode: "11101011", materialName: "彩印纸盒A", needDate: "2026-09-10", poNo: "PO26-0871" }),
+  card({ id: "b-纸盒A", score: 62, kind: "T4_unconfirmed", stage: "confirm", supplier: "样例纸品", materialCode: "11101011", materialName: "彩印纸盒A", needDate: "2026-09-10", poNo: "PO26-0871" }),
   card({ id: "a-三拼腰封", score: 182.1, kind: "T8_overdue", supplier: "示例包材", materialCode: "1110919", materialName: "三拼腰封AL", needDate: "2026-09-04", poNo: "PO26-0863" }),
-  card({ id: "d-单片贴纸", score: 22, kind: "T5_transit", supplier: "恒达纸品", materialCode: "1107859", materialName: "单片贴纸", needDate: "2026-09-22", poNo: "PO26-0880" }),
+  card({ id: "d-单片贴纸", score: 22, kind: "T5_transit", supplier: "样例纸品", materialCode: "1107859", materialName: "单片贴纸", needDate: "2026-09-22", poNo: "PO26-0880" }),
   card({ id: "c-纸托", score: 62, kind: "T5_transit", supplier: "示例包材", materialCode: "11101016", materialName: "内衬纸托", needDate: "2026-09-08", poNo: "PO26-0874" }),
 ];
 
@@ -106,7 +106,7 @@ describe("R2 同供应商合并成一次沟通", () => {
   });
 
   it("组间按组内最高分排：时进（182）在恒达（62）前面", () => {
-    expect(rankTasks(deck()).groups.map((g) => g.supplier)).toEqual(["示例包材", "恒达纸品"]);
+    expect(rankTasks(deck()).groups.map((g) => g.supplier)).toEqual(["示例包材", "样例纸品"]);
   });
 
   it("下单类不并组——那是自己在 U8 里干的活，不进同一通电话", () => {
@@ -118,7 +118,7 @@ describe("R2 同供应商合并成一次沟通", () => {
   });
 
   it("只有一张卡的供应商不成组", () => {
-    const only = deck().filter((c) => c.supplier === "恒达纸品").slice(0, 1);
+    const only = deck().filter((c) => c.supplier === "样例纸品").slice(0, 1);
     expect(rankTasks(only).groups).toHaveLength(0);
   });
 

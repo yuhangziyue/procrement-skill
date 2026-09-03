@@ -62,7 +62,9 @@ export function calcOrderQty(i: CalcInput): CalcResult {
   const status = i.status ?? "";
 
   // 0. 采购状态拦截
-  if (/停购|下架/.test(status)) {
+  // ⚠️「在购-警示将下架」也含「下架」二字——必须先放行警示，否则一个还能下单的物料会被当成停购拦掉。
+  // lookup-material.ts 里早就有这道守卫，这里当初漏了（2026-09-03 补测发现）。
+  if (/停购|下架/.test(status) && !/警示/.test(status)) {
     return {
       verdict: "blocked",
       headline: `⛔ 「${i.item}」采购状态为「${status}」：不下单。先反问生产是否真要复用旧包材，书面确认后再谈。`,

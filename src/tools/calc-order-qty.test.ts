@@ -47,4 +47,14 @@ describe("calcOrderQty", () => {
     expect(r.flags.some((f) => f.includes("单次最大接单量"))).toBe(true);
     expect(r.flags.some((f) => f.includes("分批"))).toBe(true);
   });
+
+  it("「在购-警示将下架」不能被当成停购拦掉——它含「下架」二字，但还能下单", () => {
+    const r = calcOrderQty({ item: "单片贴纸", status: "在购-警示将下架", demand: 3000, available: 500, inTransit: [] });
+    expect(r.verdict).not.toBe("blocked");
+    expect(r.flags.some((f) => f.includes("量放保守"))).toBe(true);
+  });
+
+  it("真停购仍然拦住", () => {
+    expect(calcOrderQty({ item: "瓦楞隔板", status: "停购-已下架", demand: 3000, available: 0, inTransit: [] }).verdict).toBe("blocked");
+  });
 });
