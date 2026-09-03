@@ -20,7 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # 尝试自动创建/配置 Pages 站点（仓库若未开 Pages，GITHUB_TOKEN 权限够时可直接开）
+      # GITHUB_TOKEN 无权自动开站（2026-09-03 实测失败），Pages 需在仓库 Settings → Pages 手动启用；此步失败不阻塞
       - uses: actions/configure-pages@v5
+        continue-on-error: true
         with:
           enablement: true
       - uses: actions/setup-node@v4
