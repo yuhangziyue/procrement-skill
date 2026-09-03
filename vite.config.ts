@@ -9,6 +9,10 @@ export default defineConfig({
   // dev server 把 /ark/* 转发到方舟，设置页「代理地址」填 http://localhost:5173/ark/coding/v3 即可端到端联调。
   // 只作用于 vite dev，不进 build 产物；线上仍走 proxy/worker.js。
   server: {
+    // 允许任何来源跨域访问本地 dev server（含 /ark 代理）：这样线上 Pages 页面也能把「代理地址」填成
+    // http://localhost:5173/ark/coding/v3，用本机 dev server 当个人代理（https 页面访问 http://localhost 浏览器放行）。
+    // Vite 6+ 默认只放行 localhost 来源，github.io 来的预检会被拒 ⇒ 页面上看到的就是「跨域」。
+    cors: true,
     proxy: {
       "/ark": {
         target: "https://ark.cn-beijing.volces.com",
