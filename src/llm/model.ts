@@ -16,7 +16,8 @@ const ARK_ORIGIN = "https://ark.cn-beijing.volces.com/api";
 function resolveBaseUrl(s: LlmSettings): string {
   const explicit = s.proxyUrl?.trim();
   if (explicit) return explicit;
-  if (import.meta.env.DEV && s.baseUrl.startsWith(ARK_ORIGIN)) {
+  // typeof location 守卫：vitest 里 DEV 也为 true 但没有 window（live.test.ts 走 Node 直连）
+  if (import.meta.env.DEV && typeof location !== "undefined" && s.baseUrl.startsWith(ARK_ORIGIN)) {
     return `${location.origin}/ark${s.baseUrl.slice(ARK_ORIGIN.length)}`;
   }
   return s.baseUrl;
