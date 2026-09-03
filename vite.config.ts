@@ -35,7 +35,12 @@ export default defineConfig({
         // 终端里看清每次实际打到方舟的路径与状态码，排查 404 / CORS 时不用猜
         configure: (proxy) => {
           proxy.on("proxyReq", (_req, req) => console.log(`[ark] → ${req.method} ${req.url}`));
-          proxy.on("proxyRes", (res, req) => console.log(`[ark] ← ${res.statusCode} ${req.url}`));
+          proxy.on("proxyRes", (res, req) => {
+            console.log(`[ark] ← ${res.statusCode} ${req.url}`);
+            // 方舟自己也回 access-control-allow-origin: *，和 dev server 的 cors 叠成 "*,*"——浏览器判为非法值直接拒。
+            // 上游的 CORS 头一律剥掉，只留 dev server 那一份。
+            for (const h of Object.keys(res.headers)) if (h.startsWith("access-control-")) delete res.headers[h];
+          });
         },
       },
     },
