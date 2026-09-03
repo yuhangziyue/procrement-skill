@@ -29,7 +29,10 @@ export const searchKnowledgeTool: AgentTool<typeof Params> = {
     "在小采的内置知识（采购技能树 / U8 单据流 / 下单·入库·跟单 SOP / 下单清单 / 带教原则）、用户教的增强卡、用户导入的文档里检索。回答任何流程、菜单路径、单据、术语、话术问题前先调它，按检索到的原文答，不要凭印象。",
   parameters: Params,
   execute: async (_id, p: Static<typeof Params>) => {
-    const [cards, docs] = await Promise.all([db.enhancements.where("enabled").equals(1).toArray().catch(() => db.enhancements.toArray()), db.materials.where("role").equals("doc").toArray()]);
+    // enabled 是布尔值，IndexedDB 不把布尔当索引键：where("enabled").equals(1) 会静默返回空数组而不是抛错，
+    // 之前的 catch 兜底永远不触发，索引为空 ⇒ 每次都「知识库里没有」（2026-09-03 首次真模型联调抓到）。
+    // 卡只有几十张，全量取出再在内存里筛 enabled 即可，别再走布尔索引。
+    const [cards, docs] = await Promise.all([db.enhancements.toArray(), db.materials.where("role").equals("doc").toArray()]);
     const idx = new Bm25Index<{ kind: "card" | "doc"; title: string; body: string }>();
     for (const c of cards.filter((c) => c.enabled)) idx.add(`card:${c.id}`, cardText(c), { kind: "card", title: c.name, body: renderCard(c) });
     for (const d of docs) if (d.text) idx.add(`doc:${d.id}`, `${d.name}\n${d.text}`, { kind: "doc", title: d.name, body: d.text.slice(0, 2000) });

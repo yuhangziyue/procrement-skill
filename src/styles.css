@@ -76,3 +76,6 @@ input, textarea { font: inherit; }
 .topbar-actions { display: flex; gap: 8px; }
 .topbar-actions .btn { padding: 6px 10px; font-size: 13px; }
 .msg-assistant .stack, .msg-tool .stack { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+
+.presets { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 4px; }
+.preset.active { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }

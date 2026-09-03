@@ -6,8 +6,24 @@ import { getApiKey, type LlmSettings } from "../db/settings";
 
 export const ARK_PROVIDER = "volcengine-ark";
 
+const ARK_ORIGIN = "https://ark.cn-beijing.volces.com/api";
+
+/**
+ * 本地开发：Coding Plan 端点的 CORS 预检不放行 Authorization（2026-09-03 实测），浏览器直连必挂。
+ * vite.config.ts 里配了 /ark → 方舟 的 dev 代理，这里在 dev 下自动把方舟地址改写过去，不必手填「代理地址」。
+ * 生产构建里这个分支被裁掉，线上仍按用户填的 baseUrl / proxyUrl 走。
+ */
+function resolveBaseUrl(s: LlmSettings): string {
+  const explicit = s.proxyUrl?.trim();
+  if (explicit) return explicit;
+  if (import.meta.env.DEV && s.baseUrl.startsWith(ARK_ORIGIN)) {
+    return `${location.origin}/ark${s.baseUrl.slice(ARK_ORIGIN.length)}`;
+  }
+  return s.baseUrl;
+}
+
 export function buildArkModel(s: LlmSettings): Model<"openai-completions"> {
-  const baseUrl = (s.proxyUrl?.trim() || s.baseUrl).replace(/\/+$/, "");
+  const baseUrl = resolveBaseUrl(s).replace(/\/+$/, "");
   return {
     id: s.modelId,
     name: `${s.modelId} (火山方舟)`,

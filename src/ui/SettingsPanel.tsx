@@ -1,6 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import {
   DEFAULT_LLM,
+  LLM_PRESETS,
+  DEV_LOCKED,
   getApiKey,
   getCompanyConfig,
   getLlmSettings,
@@ -60,6 +62,20 @@ export function SettingsPanel({ open, onClose, onSaved }: Props) {
         <section>
           <h4>模型接入</h4>
           <p class="muted">Key 只保存在这台浏览器的 localStorage，不会上传、不会进导出包。</p>
+          {DEV_LOCKED && <p class="muted">🛠 本地开发中：Base URL 与模型由 .env.local 锁定，请求自动经 Vite 代理转发；要换端点请改 .env.local。</p>}
+          <div class="presets">
+            {LLM_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                class={`btn preset${llm.baseUrl === p.value.baseUrl ? " active" : ""}`}
+                title={p.hint}
+                onClick={() => setLlm({ ...llm, ...p.value, proxyUrl: p.value.proxyUrl ?? (p.id === "ark-standard" ? undefined : llm.proxyUrl) })}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <p class="muted">{LLM_PRESETS.find((p) => p.value.baseUrl === llm.baseUrl)?.hint}</p>
           <label>
             API Key
             <input type="password" value={key} onInput={(e) => setKey((e.target as HTMLInputElement).value)} placeholder="火山方舟 API Key" />
