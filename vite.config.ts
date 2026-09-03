@@ -4,7 +4,21 @@ import preact from "@preact/preset-vite";
 // base 必须与仓库名一致：Pages 地址 https://yuhangziyue.github.io/procrement-skill/
 export default defineConfig({
   base: "/procrement-skill/",
-  plugins: [preact()],
+  plugins: [
+    preact(),
+    {
+      // Chrome 的 Private Network Access：公网 https 页面（GitHub Pages）请求 http://localhost 时，
+      // 预检必须带 Access-Control-Allow-Private-Network: true，否则即使 CORS 全开也是 Failed to fetch。
+      // 只在 dev server 生效，不进产物。
+      name: "xiaocai-private-network-access",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.headers["access-control-request-private-network"]) res.setHeader("Access-Control-Allow-Private-Network", "true");
+          next();
+        });
+      },
+    },
+  ],
   // 仅本地开发：Coding Plan 端点的 CORS 预检不放行 Authorization，浏览器直连必挂（2026-09-03 实测）。
   // dev server 把 /ark/* 转发到方舟，设置页「代理地址」填 http://localhost:5173/ark/coding/v3 即可端到端联调。
   // 只作用于 vite dev，不进 build 产物；线上仍走 proxy/worker.js。
