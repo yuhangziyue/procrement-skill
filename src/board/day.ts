@@ -50,9 +50,11 @@ export function evaluateDay(tasks: BoardTask[], checklist: Record<string, boolea
   // 1 日配水位
   const water = live.filter((t) => t.kind === "T10_daily_check");
   const waterOpen = water.filter((t) => !isClosed(t) && !hasNote(t));
-  push("daily_water", water.length > 0 && waterOpen.length === 0,
+  // 没有日配巡检卡时判「满足」而不是「不满足」：厂里可能压根没有日配件品类，或物料表还没标。
+  // 原先判不满足会让这类团队永远收不了工——一条提醒不该变成一道锁（补测发现，2026-09-03 改）。
+  push("daily_water", waterOpen.length === 0,
     water.length === 0
-      ? "今天没有日配巡检卡——要么物料表里没标「在购-日配」，要么还没导物料表，先去补数据"
+      ? "今天没有日配巡检卡——如果厂里有日配件，去物料表把「在购-日配」标上；没有就跳过这项"
       : waterOpen.length === 0
         ? `${water.length} 件日配水位都录了`
         : `还差 ${waterOpen.length} 件没录水位：${waterOpen.map(nameOf).join("、")}`);
@@ -121,7 +123,9 @@ export function handoverText(tasks: BoardTask[], bizDate: string): string {
   if (orderedCnt) first.push(`下了 ${orderedCnt} 张单（${done.filter((t) => t.kind === "T1_shortage" || t.kind === "T2_addon").slice(0, 3).map(nameOf).join("、")}）`);
   if (savedCnt) first.push(`拦下 ${savedCnt} 处可能断料的（${done.filter((t) => t.kind === "T8_overdue" || t.kind === "T10_daily_check").slice(0, 3).map(nameOf).join("、")}）`);
   if (noticeCnt) first.push("明天的到货预告已经发给仓库了");
-  const s1 = first.length ? `X 总，${day} 我这边：${first.join("；")}。` : `X 总，${day} 我这边今天没有已闭环的事项，手上 ${tasks.length} 条都还在推进中。`;
+  const s1 = first.length ? `X 总，${day} 我这边：${first.join("；")}。` : (tasks.length
+        ? `X 总，${day} 我这边今天没有已闭环的事项，手上 ${tasks.length} 条都还在推进中。`
+        : `X 总，${day} 我这边今天没有新的采购动作要收口。`);
 
   // 句二：卡在哪（点名 + 卡在谁那里）
   const top = rankTasks(stuck).ordered.slice(0, 3);

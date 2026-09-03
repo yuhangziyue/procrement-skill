@@ -172,7 +172,8 @@ interface Mat {
 }
 
 const isDaily = (m?: Mat) => !!m && /日配/.test(m.status);
-const isBlockedStatus = (s: string) => /停购|下架/.test(s);
+/** 停购类：停购-长期不买 / 停购-已下架 / 已到下架期。注意「在购-警示将下架」也带"下架"两个字，不能只看这两个字 */
+const isBlockedStatus = (s: string) => /^停购/.test(s) || /已到下架期/.test(s);
 const isWarnStatus = (s: string) => /警示|按需/.test(s);
 const isBuyable = (s: string) => /^在购/.test(s) || s === "";
 
@@ -481,7 +482,7 @@ function interceptCard(code: string, name: string, qty: number, needDate: string
     title: `找生产确认「${name}」怎么办（${status}）`,
     materialCode: code, materialName: name, qty, needDate, dueDate: needDate,
     steps: [
-      step("s1", `把这条归堆：${unknown ? "编码未命中——不猜、不借用相近编码" : /停购|下架/.test(status) ? "停购类——不下单，先反问" : "警示类——先确认物料还活着，确认活着才下且量放保守"}`, "小采：拦截清单"),
+      step("s1", `把这条归堆：${unknown ? "编码未命中——不猜、不借用相近编码" : isBlockedStatus(status) ? "停购类——不下单，先反问" : "警示类——先确认物料还活着，确认活着才下且量放保守"}`, "小采：拦截清单"),
       step("s2", `发给提出人，原话照抄：「${question}」`, "微信/邮件，要文字回复"),
       step("s3", "答复回来记进卡片：下 / 不下 / 换编码 XXX。能下的转成下单卡，不能下的关闭并更新物料表状态", "看板 + 物料表"),
     ],
@@ -559,9 +560,14 @@ function fromTracking(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
     const st = pickColumn(r, [...COLS.trackStatus]);
     if (isClosedStatus(st)) continue;
     const code = pickColumn(r, [...COLS.code]);
+    const rawPoNo = pickColumn(r, [...COLS.poNo]);
+    // 物料编码和订单号都拿不到 ⇒ 这一行没有任何锚点，是导出 Excel 尾部的空行。
+    // 生产表、到货表本来就有这道守卫，跟单表原先漏了：空行会一路走到「未回签」分支，
+    // 生成一张 materialCode/qty/supplier 全空、标题写着「（订单号未填）」的幽灵卡（generate.test.ts 记过复现）。
+    if (!code && !rawPoNo) continue;
     const m = ctx.mats.get(code);
     const name = m?.name ?? pickColumn(r, [...COLS.name]) ?? code;
-    const poNo = pickColumn(r, [...COLS.poNo]) || "（订单号未填）";
+    const poNo = rawPoNo || "（订单号未填）";
     const supplier = pickColumn(r, [...COLS.supplier]) || m?.supplier;
     const qty = num(pickColumn(r, [...COLS.openQty])) ?? num(pickColumn(r, [...COLS.qty]));
     const due = normalizeDate(pickColumn(r, [...COLS.promiseDate]));
