@@ -1,7 +1,9 @@
 # 小采 · 采购新人的 AI 师姐
 
-> **一句话**：给采购新人的 AI 师姐——懂岗位基本功和用友 U8 三大操作，算账用程序不用嘴，会记住你教它的规矩。
-> **纯前端**，部署在 GitHub Pages；**你的资料和对话只留在你自己的浏览器里**，不经过任何服务器。
+> **一句话**：给采购新人的 AI 师姐——每天打开就知道今天该干什么，算账用程序不用嘴，会记住你教它的规矩。
+> **两种形态**：**macOS 桌面版**（本地 SQLite，有工作看板 / 文档知识库 / U8 教程 / 学习计划）
+> 与 **网页版**（GitHub Pages，对话 + 资料 + 增强卡）。
+> **你的资料和对话只留在你自己的机器里**，不经过任何服务器。
 
 这份 README 面向两类读者：
 
@@ -10,7 +12,30 @@
 
 ---
 
-## 三张核心能力
+## 桌面版：五个模块
+
+| 模块 | 它替你做什么 |
+|---|---|
+| **🗂 工作台（看板）** | 导入生产表 / 加单表 / 订单执行报表，自动生成今天的待办，按 `35·时限 + 30·断料 + 12·日配 + 8·金额 + 8·供应商 + 7·滞留` 打分排序，分四条泳道：**要下单 / 等确认 / 在途催货 / 到货入库**。每张卡带「这一步做什么 → 什么算干完 → 卡住了找谁 + 开口第一句」。收工时给一段可直接发给领导的三句话。 |
+| **📚 知识库** | 把公司制度、SOP、规格书（md/txt/csv/xlsx/docx/pdf）拖进来，自动切块并归到 10 类采购知识，问答时按需检索（SQLite FTS5 + 中文 bigram，全离线）。 |
+| **🖥 U8 教程** | 用友 U8+ 的查询 / 导入 / 导出 / 单据流分步图文，每条菜单路径标了可信度：✅ 多来源确认 / ⚠️ 单来源待实机核对 / ❌ 路径未知。**没查实的绝不编**。 |
+| **🎓 学习计划** | 16 周补齐盲区，四条赛道：基础知识 / 系统操作 / 跨部门对接 / 供应商对接。每条有「不懂会出什么事 → 怎么学 → 做哪件真实的活 → 学会了的凭据」。不做测验打分。 |
+| **💬 采姐侧栏** | 常驻右侧，看板每张卡上的「问采姐」会自动把物料 / PO / 卡在哪一步带过去。 |
+
+### 桌面版怎么跑
+
+```bash
+nvm use 22
+npm i
+npm run desktop      # 开发模式（顺带起 /ark 代理，本机联调模型不用另配）
+npm run dist:mac     # 打包出 release/mac-arm64/小采.app 与 .dmg
+```
+数据库落在 `~/Library/Application Support/xiaocai/xiaocai.sqlite`，可以直接用 `sqlite3` 打开、可以整个复制走做备份。
+未做代码签名——发给别人时对方需要右键打开。
+
+---
+
+## 三张核心能力（对话侧，两种形态都有）
 
 | 能力 | 它替你做什么 | 试着这样问 |
 |---|---|---|
@@ -118,6 +143,10 @@ fork 后要改的两个常量：
 - `proxy/worker.js` 里的 `ALLOW_ORIGINS`（若你部署了代理）
 
 ## 技术栈
+
+桌面壳 Electron 38（内置 Node 22 的 `node:sqlite`，**零原生编译、不需要 Rust**）+ electron-builder；
+存储层做了 Dexie 兼容抽象，桌面走 SQLite、网页走 IndexedDB，业务代码不感知。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §10。
+
 
 Vite 8 · Preact 10 · TypeScript · `@earendil-works/pi-agent-core` + `@earendil-works/pi-ai`（仅 openai-completions 路径，≈160 KB gzip）· TypeBox · Dexie 4（IndexedDB）· date-fns · papaparse · SheetJS（懒加载）· marked + DOMPurify · Cloudflare Worker（可选代理）· GitHub Actions → gh-pages 分支 → Pages
 

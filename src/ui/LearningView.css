@@ -1,0 +1,120 @@
+/* 学习计划页 —— 视觉语言跟 MaterialsPanel / KnowledgePanel 一致：
+   基础 .btn / .btn-sm / .muted / .error 来自 styles.css，这里只加 .lv-* 前缀类。
+   刻意不用红色做"未完成"：这一页不制造压力，红色只留给「不懂会出什么事」。 */
+
+.lv { height: 100%; overflow: auto; padding: 18px 22px 40px; }
+
+/* 四条赛道的色标 */
+.lv-track-basics { --tk: #c8553d; --tk-soft: #fbe9e4; }
+.lv-track-system { --tk: #2b6cb0; --tk-soft: #e6f0fa; }
+.lv-track-collab { --tk: #2f855a; --tk-soft: #e6f4ec; }
+.lv-track-supplier { --tk: #975a16; --tk-soft: #faf0dd; }
+
+/* ---- 头 ---- */
+.lv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+.lv-title { margin: 0 0 4px; font-size: 19px; }
+.lv-sub { max-width: 640px; }
+.lv-total { text-align: right; flex: none; }
+.lv-total b { font-size: 26px; color: var(--brand); }
+.lv-total-min { margin-top: 2px; }
+.lv-error { margin: 8px 0 0; font-size: 14px; }
+
+/* ---- 加载态 ---- */
+.lv-loading { padding: 40px 0; max-width: 520px; }
+.lv-skeleton { height: 14px; border-radius: 7px; background: linear-gradient(90deg, var(--line), #f2f3f5, var(--line)); background-size: 200% 100%; animation: lv-shimmer 1.2s linear infinite; margin-bottom: 10px; }
+.lv-skeleton.short { width: 55%; }
+@keyframes lv-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ---- 四条进度条 ---- */
+.lv-tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin: 14px 0 16px; }
+.lv-track { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); border-left: 3px solid var(--tk); }
+.lv-track-top { display: flex; justify-content: space-between; align-items: baseline; }
+.lv-track-name { font-weight: 600; font-size: 14px; }
+.lv-track-count { font-size: 13px; }
+.lv-bar { height: 6px; border-radius: 3px; background: var(--line); margin: 8px 0 6px; overflow: hidden; }
+.lv-bar i { display: block; height: 100%; background: var(--tk); border-radius: 3px; transition: width .25s ease; }
+.lv-track-gap { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+/* ---- 本周三件事 ---- */
+.lv-next { border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 0 10px 10px 0; background: var(--brand-soft); padding: 10px 14px; }
+.lv-h3 { margin: 0 0 6px; font-size: 15px; }
+.lv-next-list { margin: 0; padding-left: 20px; }
+.lv-next-list li { margin: 2px 0; }
+.lv-next-item { background: none; border: 0; padding: 2px 0; text-align: left; color: var(--text); display: flex; gap: 8px; align-items: baseline; }
+.lv-next-item:hover .lv-next-title { color: var(--brand); text-decoration: underline; }
+.lv-next-week { font-size: 12px; color: var(--muted); flex: none; }
+.lv-next-title { font-weight: 600; }
+.lv-next-min { font-size: 12px; }
+.lv-allclear { margin: 0; font-weight: 600; color: #237804; }
+
+/* ---- 视图切换 ---- */
+.lv-modes { display: flex; align-items: center; gap: 8px; margin: 16px 0 10px; flex-wrap: wrap; }
+.lv-modes-hint { font-size: 12px; }
+
+/* ---- 按周（时间轴） ---- */
+.lv-timeline { border-left: 2px solid var(--line); padding-left: 16px; margin-left: 6px; }
+.lv-week { position: relative; margin-bottom: 18px; }
+.lv-week::before { content: ""; position: absolute; left: -23px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--panel); border: 2px solid var(--line); }
+.lv-week.done::before { background: #237804; border-color: #237804; }
+.lv-week-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.lv-week-no { font-weight: 700; font-size: 14px; }
+.lv-week-theme { font-size: 14px; color: var(--text); }
+.lv-week-meta { font-size: 12px; }
+.lv-week-empty { margin: 0 0 6px; }
+
+/* ---- 按赛道（四栏） ---- */
+.lv-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; align-items: start; }
+.lv-col { min-width: 0; }
+.lv-col-head { border-radius: 10px; padding: 8px 12px; background: var(--tk-soft); border-left: 3px solid var(--tk); margin-bottom: 8px; }
+.lv-col-head b { display: block; font-size: 14px; }
+.lv-col-head span { font-size: 12px; }
+.lv-chapter { margin-bottom: 12px; }
+.lv-chapter-name { font-size: 13px; font-weight: 600; }
+.lv-chapter-goal { font-size: 12px; color: var(--muted); margin-bottom: 6px; line-height: 1.5; }
+
+/* ---- 条目卡 ---- */
+.lv-cards { display: flex; flex-direction: column; gap: 6px; }
+.lv-card { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 8px 12px; }
+.lv-card.open { border-color: var(--brand); box-shadow: 0 1px 6px rgba(200, 85, 61, .1); }
+.lv-card.lv-done { background: #fbfdfa; }
+.lv-card.lv-done .lv-card-title span:last-child { color: var(--muted); }
+.lv-card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.lv-card-title { flex: 1; min-width: 0; background: none; border: 0; text-align: left; padding: 0; color: var(--text); font-weight: 600; font-size: 14px; display: flex; gap: 6px; align-items: center; }
+.lv-card-title:hover { color: var(--brand); }
+.lv-lock { flex: none; font-size: 12px; }
+.lv-card-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.lv-min { font-size: 12px; }
+.lv-status { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--muted); }
+.lv-status-doing { border-color: #ad4e00; color: #ad4e00; background: #fff7e6; }
+.lv-status-done { border-color: #237804; color: #237804; background: #f2fbef; }
+.lv-card-meta { display: flex; gap: 6px; align-items: baseline; margin-top: 4px; font-size: 12px; flex-wrap: wrap; }
+.lv-tag { border-radius: 4px; padding: 1px 6px; font-size: 11px; background: var(--tk-soft); color: var(--tk); }
+.lv-locked-hint { margin: 6px 0 0; font-size: 12px; color: #ad4e00; }
+
+/* ---- 展开区 ---- */
+.lv-body { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
+.lv-block { margin-bottom: 10px; }
+.lv-block p { margin: 2px 0 0; font-size: 14px; line-height: 1.65; }
+.lv-block-label { font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+.lv-why p { color: #a8071a; }            /* 后果用红字——全页唯一的红 */
+.lv-proof p { background: var(--tool); border-radius: 8px; padding: 6px 10px; }
+.lv-learn, .lv-refs { margin: 4px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.65; }
+.lv-refs { list-style: none; padding-left: 0; }
+.lv-refs li { margin: 2px 0; font-size: 13px; }
+.lv-ref-kind { display: inline-block; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-right: 6px; font-size: 11px; color: var(--muted); }
+
+/* ---- 自评（可跳过，不打分） ---- */
+.lv-rate { margin: 10px 0; }
+.lv-stars { display: flex; align-items: center; gap: 2px; margin-top: 2px; }
+.lv-star { background: none; border: 0; padding: 0 2px; font-size: 17px; line-height: 1; color: var(--line); }
+.lv-star.on { color: #d4a017; }
+.lv-star:hover { color: #d4a017; }
+.lv-rate-hint { margin-left: 8px; font-size: 12px; }
+
+.lv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 720px) {
+  .lv { padding: 14px; }
+  .lv-head { flex-direction: column; }
+  .lv-total { text-align: left; }
+}

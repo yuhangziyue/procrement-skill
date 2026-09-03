@@ -29,3 +29,10 @@ supplier-*
 
 # 内部规划书含真人名字与私有文件名，只留本地，不进公开仓（公开版另出 docs/ARCHITECTURE.md）
 docs/PLAN.md
+# 三份规格书含真人姓名与公司内部流程，同样只留本地（公开版信息已并入 README / ARCHITECTURE）
+docs/SPEC-product.md
+docs/SPEC-procurement.md
+docs/U8-RESEARCH.md
+
+# 桌面版打包产物
+release/

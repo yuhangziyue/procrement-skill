@@ -98,3 +98,19 @@ input, textarea { font: inherit; }
 .banner.warn { background: #fff7e6; color: #874d00; border-bottom: 1px solid #ffe7ba; }
 .banner.warn .btn-link { padding: 0 4px; }
 .warn-inline { color: #874d00; background: #fff7e6; border-radius: 8px; padding: 8px 10px; font-size: 13px; margin: 6px 0; }
+
+/* ===== 桌面版外壳：导航 rail | 主区 | 采姐常驻侧栏 ===== */
+.shell { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; height: 100dvh; overflow: hidden; }
+.shell-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #f6f7f9; overflow: hidden; }
+.shell-chat { width: 360px; flex: none; min-height: 0; display: flex; flex-direction: column;
+  border-left: 1px solid #e3e6ec; background: #fff; position: relative; }
+.shell-chat.collapsed { width: 40px; }
+.chat-toggle { position: absolute; left: -1px; top: 10px; z-index: 2; width: 22px; height: 44px; padding: 0;
+  border: 1px solid #e3e6ec; border-left: 0; border-radius: 0 6px 6px 0; background: #fff; cursor: pointer; color: #6b7280; }
+.shell-chat.collapsed .chat-toggle { width: 38px; writing-mode: vertical-rl; height: auto; padding: 10px 0; border-radius: 6px; }
+.chat-head { display: flex; align-items: center; gap: 4px; padding: 8px 8px 8px 26px; border-bottom: 1px solid #eef0f4; }
+.chat-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.btn-sm { padding: 3px 6px; font-size: 12px; }
+.chat-sessions { max-height: 40%; overflow: auto; border-bottom: 1px solid #eef0f4; }
+.shell-chat .messages { flex: 1; min-height: 0; overflow: auto; }
+@media (max-width: 1180px) { .shell-chat { width: 300px; } }

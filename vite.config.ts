@@ -2,8 +2,11 @@ import { defineConfig } from "vite";
 import preact from "@preact/preset-vite";
 
 // base 必须与仓库名一致：Pages 地址 https://yuhangziyue.github.io/procrement-skill/
+// 桌面版从 file:// 加载 dist/index.html，必须用相对 base；网页版仍按仓库名。
+const isElectron = !!process.env.ELECTRON;
+
 export default defineConfig({
-  base: "/procrement-skill/",
+  base: isElectron ? "./" : "/procrement-skill/",
   plugins: [
     preact(),
     {

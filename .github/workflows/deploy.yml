@@ -34,7 +34,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # 网页版发布用不到 Electron 二进制（100MB+），跳过下载，CI 快一半
       - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       # 隐私守卫：命中供应商实名 / 真人姓名 / 客户品牌词即失败，宁可发布不了也不泄露
       - run: npm run guard
       - run: npm test

@@ -199,3 +199,77 @@ new Agent({
 | **Preact 而非 React** | 体积优先，React 语义能无缝迁移 | 需要 React 生态里某个 Preact 兼容不了的库时 |
 | **增强卡自动覆盖 / builtin 版本管理 / 卡片打分** | 停车场 | 卡片数量或冲突频率上来之后 |
 | **多用户 / 服务端存储 / 直连 U8 / 语音 / 移动端原生** | v1 明确不做 | —— |
+
+## 10. 桌面化（macOS，2026-09-03）
+
+### 10.1 为什么是 Electron 而不是 Tauri
+
+| | Tauri 2 | **Electron 38（选它）** |
+|---|---|---|
+| 前置工具链 | 要 Rust + cargo，首次编译几百个 crate | 只要 Node，`npm i` 完事 |
+| SQLite | plugin-sql（原生编译） | **内置 Node 22.22 的 `node:sqlite`，零原生依赖** |
+| 包体 | ~10MB | ~120MB |
+| 本次的约束 | 一小时内要能打出 `.app` | ✅ |
+
+实测确认（`ELECTRON_RUN_AS_NODE=1 electron -e ...`）：Electron 38.8.6 里 `node:sqlite` 可用，SQLite 3.51.3，**FTS5 已编进去**。
+包体大是明确付出的代价——换的是「不装 Rust、不做原生编译、打包链路一次跑通」。
+
+### 10.2 进程与通道
+
+```
+渲染进程（Preact，和网页版同一份代码）
+   │  window.xiaocai.call(name, ...args)      ← preload.cjs，contextIsolation，唯一通道
+   ▼
+主进程 electron/main.cjs
+   ├─ API 白名单（table.* / kb.* / board.* / learn.*）——渲染进程不能下发任意 SQL
+   ├─ electron/db.mjs        老表（sessions/messages/…）+ 建表迁移
+   └─ electron/features.mjs  知识库 / 看板 / 学习进度
+        └─ node:sqlite → ~/Library/Application Support/xiaocai/xiaocai.sqlite（WAL）
+```
+
+`main.cjs` 是 CJS 而不是 ESM：项目 `"type":"module"`，而 Electron 38 的 ESM 主进程入口拿不到 `electron` 的具名导出
+（`import { app } from "electron"` 报 no export，`default` 又是 undefined，实测两次）。业务模块仍是 ESM，靠动态 `import()` 引进来。
+
+### 10.3 存储抽象：一个 Dexie 兼容层顶掉整次重构
+
+现有 60 多处调用只用到 Dexie 的一个很小子集，于是 **`src/data/sqlite-table.ts` 照着实现一遍**，
+`src/db/schema.ts` 在启动时按 `isDesktop()` 选后端：
+
+- 桌面版 → SQLite（`id + 索引列 + data JSON` 的宽表，索引列与原 Dexie `stores` 一一对应）
+- 网页版 → 原 Dexie/IndexedDB，GitHub Pages 上那份继续能用
+
+业务代码**一行没改**（只有 `seed.ts` 的类型名跟着换）。桌面化的风险因此收敛到一个文件。
+`db.transaction()` 在 SQLite 后端下只跑回调——单用户单进程，批量写在主进程里已经包在 `BEGIN/COMMIT` 里。
+
+### 10.4 知识库为什么选 FTS5 + 中文 bigram，而不是向量
+
+- **离线可用**：桌面版不该为了检索去调云端 embedding；本地跑嵌入模型又要几百 MB 权重。
+- **可解释**：命中哪个词、为什么排前面，采购新人能看懂；向量相似度她没法质疑。
+- **够用**：语料是公司制度/SOP/物料表，术语固定，关键词召回率高。
+
+中文没有词边界，FTS5 默认分词器会把整段当一个 token ⇒ **入库和查询都先切 bigram**（`features.mjs` 的 `toGrams`），
+排序用 SQLite 内置 `bm25()`。踩过的坑：`content=''` 的 contentless FTS5 表**不支持 DELETE**，删文档时直接 `SQL logic error`，
+所以用的是普通 FTS5 表（`chunkId UNINDEXED, gram`）。
+
+升级路径留着：`chunks` 表加一列 `embedding BLOB`，检索时 FTS5 先粗筛再向量精排即可，不用动表结构。
+
+### 10.5 表结构（新增部分）
+
+| 表 | 用途 | 关键点 |
+|---|---|---|
+| `documents` / `chunks` / `chunks_fts` | 文档知识库 | chunk 带 `category`（10 类采购知识分类法），检索可按类过滤 |
+| `board_tasks` | 工作看板任务 | `stage` 四泳道、`score` + `reasons[]`、`steps[]`/`doneSteps[]`、`doneRule` 完成判定、`bizDate` 归属日 |
+| `board_days` | 当日收工清单 | `checklist` JSON + `closedAt` |
+| `learning_progress` | 学习计划进度 | `status` 三态 + 自评 `score`（可空，**不做测验打分**） |
+
+业务判断一律**不写在主进程**：打分、任务生成、分类规则都在渲染侧 TS 里（`src/board/*`、`src/knowledge/*`），
+那边有 vitest 覆盖；主进程只做存取。
+
+### 10.6 打包
+
+```bash
+npm run desktop      # 开发：vite dev + Electron（复用 /ark 代理）
+npm run dist:mac     # 出 .app 与 .dmg（arm64，未签名）
+```
+未做代码签名与公证——本机自用够了；要发给别人得配 Apple Developer 证书，否则对方要右键打开。
+CI 的网页版发布加了 `ELECTRON_SKIP_BINARY_DOWNLOAD=1`，不为 Pages 构建下载 100MB 的 Electron 二进制。

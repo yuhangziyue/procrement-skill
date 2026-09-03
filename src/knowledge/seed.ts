@@ -1,6 +1,6 @@
 // 把 knowledge/*.md 六篇 SOP 切成内置增强卡（origin:"builtin"），供 system-prompt 注入与 BM25 召回。
 // 只读 md 原文，不调模型；切分规则见 splitMarkdownToCards。测试只跑 buildBuiltinCards，不碰 IndexedDB。
-import type { EnhancementRow, XiaocaiDB } from "../db/schema";
+import type { EnhancementRow, XiaocaiStore } from "../db/schema";
 
 const RAW = import.meta.glob<string>("../../knowledge/*.md", { query: "?raw", import: "default", eager: true });
 
@@ -260,7 +260,7 @@ export function buildBuiltinCards(): EnhancementRow[] {
  * 幂等灌库：builtin 卡 bulkPut；已存在的同 id 卡保留用户的 enabled 开关；
  * 已不再生成的旧 builtin id 删除；origin ≠ builtin 的卡一律不动。
  */
-export async function seedBuiltinCards(db: XiaocaiDB): Promise<{ put: number; removed: number }> {
+export async function seedBuiltinCards(db: XiaocaiStore): Promise<{ put: number; removed: number }> {
   const fresh = buildBuiltinCards();
   return db.transaction("rw", db.enhancements, async () => {
     const existing = await db.enhancements.where("origin").equals("builtin").toArray();

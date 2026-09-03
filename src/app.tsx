@@ -16,8 +16,17 @@ import { MaterialsPanel } from "./ui/MaterialsPanel";
 import { ExportPanel } from "./ui/ExportPanel";
 import { EnhancementsPanel } from "./ui/EnhancementsPanel";
 import { EnhancementPreview } from "./ui/EnhancementPreview";
+import { NavRail, type ViewId } from "./ui/NavRail";
+import { KnowledgePanel } from "./ui/KnowledgePanel";
+import { isDesktop } from "./data/bridge";
+import { loadBoard, rebuildBoard, setCheck, setTaskStatus, toggleStep, closeDay, type BoardSnapshot } from "./board/service";
+import type { BoardTask } from "./board/types";
+/* 集成开关：三个视图由工兵并行交付，到位一个打开一个（老架集成点，别在别处 import） */
+import { BoardView } from "./ui/BoardView";
+import { TutorialView } from "./ui/TutorialView";
+import { LearningView } from "./ui/LearningView";
 
-type Panel = "settings" | "materials" | "enhancements" | "export" | null;
+type Panel = "settings" | "materials" | "enhancements" | "export" | "knowledge" | null;
 
 export function App() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -27,6 +36,11 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [panel, setPanel] = useState<Panel>(null);
+  const [view, setView] = useState<ViewId>("board");
+  const [board, setBoard] = useState<BoardSnapshot>();
+  const [boardBusy, setBoardBusy] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [hasKey, setHasKey] = useState(!!getApiKey());
   const [proxyMissing, setProxyMissing] = useState(false);
   const [feedback, setFeedback] = useState<Map<string, FeedbackRow>>(new Map());
@@ -107,6 +121,34 @@ export function App() {
     });
   }, []);
 
+  // ---------- 工作看板 ----------
+  const refreshBoard = useCallback(async () => {
+    if (!isDesktop()) return;
+    try { setBoard(await loadBoard()); } catch (e) { console.warn("load board failed", e); }
+  }, []);
+
+  const rebuildBoardNow = useCallback(async () => {
+    setBoardBusy(true);
+    try { setBoard(await rebuildBoard()); }
+    catch (e: any) { setError(e?.message ?? String(e)); }
+    finally { setBoardBusy(false); }
+  }, []);
+
+  useEffect(() => { void refreshBoard(); }, [refreshBoard]);
+
+  /** 卡片上的「问采姐」：把物料 / PO / 卡在哪一步一起带过去，她不用自己组织语言（苏姐 §3） */
+  const askAboutTask = (task: BoardTask, question: string) => {
+    const ctx = [
+      task.materialCode && `物料 ${task.materialCode}${task.materialName ? `（${task.materialName}）` : ""}`,
+      task.supplier && `供应商 ${task.supplier}`,
+      task.poNo && `采购订单 ${task.poNo}`,
+      task.needDate && `需求日期 ${task.needDate}`,
+      task.dueDate && `最晚动作日 ${task.dueDate}`,
+    ].filter(Boolean).join("、");
+    setChatOpen(true);
+    void send(`【来自工作台卡片：${task.title}】${ctx ? `背景：${ctx}。` : ""}${question}`);
+  };
+
   const send = async (text: string) => {
     const agent = agentRef.current;
     if (!agent || !currentId) return;
@@ -177,20 +219,48 @@ export function App() {
 
   const current = sessions.find((s) => s.id === currentId);
 
+  const boardEmpty = { items: [], canClose: false, handoverText: "" };
+
+  /** 主区视图。三个视图由工兵并行交付，未到位的先给占位，不挡编译。 */
+  const renderView = () => {
+    switch (view) {
+      case "board":
+        return (
+          <BoardView
+            tasks={board?.ordered ?? []}
+            top3={board?.top3 ?? []}
+            groups={board?.groups ?? []}
+            day={board?.day ?? boardEmpty}
+            bizDate={board?.bizDate ?? new Date().toISOString().slice(0, 10)}
+            loading={boardBusy}
+            warnings={board?.warnings}
+            desktopOnly={!isDesktop()}
+            onToggleStep={(id, step, done) => void toggleStep(id, step, done, board?.tasks ?? []).then(refreshBoard)}
+            onStatus={(id, st, note) => void setTaskStatus(id, st, note).then(refreshBoard)}
+            onCheck={(item, checked) => void setCheck(board?.bizDate ?? "", item, checked).then(refreshBoard)}
+            onCloseDay={() => void closeDay(board?.bizDate ?? "").then(refreshBoard)}
+            onRefresh={() => void rebuildBoardNow()}
+            onAskAgent={askAboutTask}
+            onImport={() => setPanel("materials")}
+          />
+        );
+      case "tutorial":
+        return <TutorialView onAskAgent={(q) => { setChatOpen(true); void send(q); }} />;
+      case "learning":
+        return <LearningView onAskAgent={(q) => { setChatOpen(true); void send(q); }} onOpenTutorial={() => setView("tutorial")} />;
+    }
+  };
+
   return (
-    <div class="layout">
-      <Sidebar sessions={sessions} currentId={currentId} onSelect={selectSession} onNew={newSession} onDelete={deleteSession} />
-      <main class="chat">
-        <header class="topbar">
-          <span class="title">{current?.title ?? ""}</span>
-          <div class="topbar-actions">
-            <button class="btn" onClick={summarize} disabled={!hasKey || busy || messages.length < 2} title="把本次会话做成留痕小结">📝 小结</button>
-            <button class="btn" onClick={() => setPanel("materials")}>📂 资料库</button>
-            <button class="btn" onClick={() => setPanel("enhancements")}>🧩 增强卡</button>
-            <button class="btn" onClick={() => setPanel("export")}>⇩ 导出</button>
-            <button class="btn" onClick={() => setPanel("settings")}>⚙ 设置{!hasKey && <span class="dot" />}</button>
-          </div>
-        </header>
+    <div class="shell">
+      <NavRail
+        view={view}
+        onChange={(v) => (v === "knowledge" ? setPanel("knowledge") : setView(v))}
+        onSettings={() => setPanel("settings")}
+        alert={!hasKey}
+      />
+
+      <main class="shell-main">
         {proxyMissing && (
           <div class="banner warn">
             ⚠️ 当前选的是 Coding Plan 端点但没填代理地址——浏览器直连会被 CORS 拦住。去
@@ -199,13 +269,41 @@ export function App() {
           </div>
         )}
         {error && <div class="banner error">⚠️ {error}</div>}
-        {currentId && (
-          <MessageList sessionId={currentId} messages={messages} streaming={streaming} feedback={feedback} onFeedbackChange={() => currentId && refreshFeedback(currentId)} onTeach={teach} />
-        )}
-        <Composer disabled={!hasKey || proxyMissing} streaming={busy} onSend={send} onAbort={abort} />
+        {renderView()}
       </main>
+
+      {/* 采姐常驻侧栏：苏姐定的——看板是主界面，对话不占主位也不可关闭，只能折起来 */}
+      <aside class={`shell-chat${chatOpen ? "" : " collapsed"}`}>
+        <button class="chat-toggle" onClick={() => setChatOpen(!chatOpen)} title={chatOpen ? "折起采姐" : "展开采姐"}>
+          {chatOpen ? "›" : "‹ 采姐"}
+        </button>
+        {chatOpen && (
+          <>
+            <header class="chat-head">
+              <button class="btn btn-sm" onClick={() => setSessionsOpen(!sessionsOpen)} title="历史会话">🕘</button>
+              <span class="chat-title" title={current?.title}>{current?.title ?? "采姐"}</span>
+              <button class="btn btn-sm" onClick={newSession} title="新会话">＋</button>
+              <button class="btn btn-sm" onClick={summarize} disabled={!hasKey || busy || messages.length < 2} title="把本次会话做成留痕小结">📝</button>
+              <button class="btn btn-sm" onClick={() => setPanel("materials")} title="资料库">📂</button>
+              <button class="btn btn-sm" onClick={() => setPanel("enhancements")} title="增强卡">🧩</button>
+              <button class="btn btn-sm" onClick={() => setPanel("export")} title="导出备份">⇩</button>
+            </header>
+            {sessionsOpen && (
+              <div class="chat-sessions">
+                <Sidebar sessions={sessions} currentId={currentId} onSelect={(id) => { setSessionsOpen(false); void selectSession(id); }} onNew={newSession} onDelete={deleteSession} />
+              </div>
+            )}
+            {currentId && (
+              <MessageList sessionId={currentId} messages={messages} streaming={streaming} feedback={feedback} onFeedbackChange={() => currentId && refreshFeedback(currentId)} onTeach={teach} />
+            )}
+            <Composer disabled={!hasKey || proxyMissing} streaming={busy} onSend={send} onAbort={abort} />
+          </>
+        )}
+      </aside>
+
+      {panel === "knowledge" && <KnowledgePanel onClose={() => setPanel(null)} />}
       <SettingsPanel open={panel === "settings"} onClose={() => setPanel(null)} onSaved={rebuild} />
-      <MaterialsPanel open={panel === "materials"} onClose={() => setPanel(null)} onChanged={rebuild} />
+      <MaterialsPanel open={panel === "materials"} onClose={() => setPanel(null)} onChanged={async () => { await rebuild(); await refreshBoard(); }} />
       <EnhancementsPanel open={panel === "enhancements"} onClose={() => setPanel(null)} onChanged={rebuild} />
       <ExportPanel open={panel === "export"} onClose={() => setPanel(null)} currentSessionId={currentId} onImported={async () => { await refreshSessions(); await rebuild(); }} />
       {draft && <EnhancementPreview draft={draft.draft} conflicts={draft.conflicts} existing={draft.existing} title="小采学到一条新规矩，确认后下次照办" onConfirm={confirmDraft} onCancel={() => setDraft(undefined)} />}
