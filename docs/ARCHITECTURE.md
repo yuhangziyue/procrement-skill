@@ -60,7 +60,7 @@
 | `templates/` | 三张脱敏 CSV 模板（物料清单 / 供应商档案 / 跟单表）及字段说明 |
 | `proxy/` | Cloudflare Worker 代理源码与 `wrangler.toml` |
 | `scripts/privacy-guard.mjs` | 隐私守卫：扫描 `src/ knowledge/ templates/ proxy/ index.html README.md`，命中禁入词即退出码 1 |
-| `.github/workflows/deploy.yml` | push master → guard → build → 上传 → deploy-pages |
+| `.github/workflows/deploy.yml` | push master → guard → test → `scripts/deploy-pages.mjs`（构建 + 产物门禁 + 强推 `gh-pages` 分支），由 GitHub 内置 pages build and deployment 发布 |
 
 ---
 

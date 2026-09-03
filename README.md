@@ -26,7 +26,7 @@
 
 ## 三分钟用起来
 
-1. **打开 Pages 地址**：`https://<你的 GitHub 用户名>.github.io/<仓库名>/`（fork 后由 GitHub Actions 自动发布，见下文「部署」）。
+1. **打开 Pages 地址**：`https://<你的 GitHub 用户名>.github.io/<仓库名>/`（本仓库线上地址：https://yuhangziyue.github.io/procrement-skill/ ；fork 后由 GitHub Actions 自动推 `gh-pages` 分支发布，见下文「部署」）。
 2. **点右上角「⚙ 设置」**，填三项：
    - **API Key**：火山方舟控制台申请的 Key（只存在你浏览器的 localStorage，导出时自动剔除）
    - **Base URL**：见下方「接入说明」
@@ -86,20 +86,18 @@ npx vitest run     # 单元测试（src/tools/*.test.ts）
 
 ## 部署
 
-push 到 `master` → GitHub Actions（[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)）依次执行 `npm ci` → `npm run guard` → `npm run build` → `actions/deploy-pages`。
+push 到 `master` → GitHub Actions（[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)）依次执行 `npm ci` → `npm run guard` → `npm test` → `npm run deploy:pages`：
+后者构建后做产物门禁（`index.html` 存在、主 js 体积正常），再把 `dist/` 作为 orphan 提交**强推到 `gh-pages` 分支**；真正的发布由 GitHub 内置的 `pages build and deployment` 完成。判据：Actions 列表里出现该内置任务且成功 ⇒ 线上已更新。
 
-**首次需要手动做一件事**：仓库 **Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**（不是 Deploy from a branch）。
+**为什么走 `gh-pages` 分支而不是 Pages 的「GitHub Actions」Source**（2026-09-03 实证）：Pages 站点只能由仓库 owner 在 Settings 里创建，`GITHUB_TOKEN` 无权代劳（`configure-pages enablement:true` 实测失败，`deploy-pages` 在站点不存在时直接红）。而首次推 `gh-pages` 分支时 GitHub 会自动建站并把 Source 设为该分支，**fork 后零手动设置即可上线**。本地也可以手动发：`npm run deploy:pages`（与 CI 同一脚本，不会漂）。
 
-fork 之后还要改两处与仓库名 / 域名绑定的常量：
-
-- `vite.config.ts` 里的 `base: "/<仓库名>/"`
+fork 后要改的两个常量：
+- [`vite.config.ts`](vite.config.ts) 的 `base`（= `/<你的仓库名>/`）
 - `proxy/worker.js` 里的 `ALLOW_ORIGINS`（若你部署了代理）
-
----
 
 ## 技术栈
 
-Vite 8 · Preact 10 · TypeScript · `@earendil-works/pi-agent-core` + `@earendil-works/pi-ai`（仅 openai-completions 路径，≈160 KB gzip）· TypeBox · Dexie 4（IndexedDB）· date-fns · papaparse · SheetJS（懒加载）· marked + DOMPurify · Cloudflare Worker（可选代理）· GitHub Actions → Pages
+Vite 8 · Preact 10 · TypeScript · `@earendil-works/pi-agent-core` + `@earendil-works/pi-ai`（仅 openai-completions 路径，≈160 KB gzip）· TypeBox · Dexie 4（IndexedDB）· date-fns · papaparse · SheetJS（懒加载）· marked + DOMPurify · Cloudflare Worker（可选代理）· GitHub Actions → gh-pages 分支 → Pages
 
 ## 许可证
 
