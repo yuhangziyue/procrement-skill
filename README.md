@@ -20,7 +20,7 @@
 
 内置带教口吻：每个术语第一次出现带白话解释；给方案让你选，不替你定；一次只讲一件事并附工具；出错只讲「下次怎么做」。涉及 U8 菜单路径 / 单据名 / 税率的回答，在你没填公司配置前一律带「⚠️ 待实机核对」。
 
-> **当前实现进度**（2026-09-03）：9 个工具全部接入 Agent——`search_knowledge`（本地 BM25 检索内置知识 / 增强卡 / 用户文档）、`lookup_material`、`calc_order_qty`、`backward_schedule`、`check_po`、`arrival_notice`、`track_status`、`save_summary`、`save_enhancement`；资料导入（CSV/xlsx，GB18030 回退）、导出/导入备份、增强卡面板（冲突由用户拍板）、👍👎 反馈与「已采用」、38 张内置知识卡首启自动种入。73 个单元测试。未做：真实模型端到端验收（等 Key）、移动端布局。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+> **当前实现进度**（2026-09-03）：9 个工具全部接入 Agent——`search_knowledge`（本地 BM25 检索内置知识 / 增强卡 / 用户文档）、`lookup_material`、`calc_order_qty`、`backward_schedule`、`check_po`、`arrival_notice`、`track_status`、`save_summary`、`save_enhancement`；资料导入（CSV/xlsx，GB18030 回退）、导出/导入备份、增强卡面板（冲突由用户拍板）、👍👎 反馈与「已采用」、38 张内置知识卡首启自动种入。73 个单元测试。真实模型端到端已验收（Node 侧 `ARK_LIVE=1 npx vitest run src/agent/live.test.ts`；浏览器侧经 vite dev `/ark` 代理）：模型按人设先查物料、再调 `calc_order_qty`、复述算式与 MOQ 三选一。未做：移动端布局。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ---
 

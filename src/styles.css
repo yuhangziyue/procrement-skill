@@ -81,3 +81,16 @@ input, textarea { font: inherit; }
 
 .presets { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 4px; }
 .preset.active { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+
+/* 思考过程（模型推理 + 工具调用 + 工具结果）默认折叠，点标题展开；答案正文始终可见 */
+.turn { display: flex; flex-direction: column; gap: 10px; }
+.thinking { margin-left: 46px; max-width: 814px; border: 1px dashed var(--line); border-radius: 10px; background: var(--tool); font-size: 13px; color: var(--muted); }
+.thinking summary { list-style: none; cursor: pointer; padding: 6px 12px; display: flex; align-items: center; gap: 6px; user-select: none; }
+.thinking summary::-webkit-details-marker { display: none; }
+.thinking summary::before { content: "▸"; display: inline-block; transition: transform .15s; }
+.thinking[open] summary::before { transform: rotate(90deg); }
+.thinking-hint { margin-left: auto; font-size: 12px; opacity: .7; }
+.thinking-body { padding: 0 12px 10px; display: flex; flex-direction: column; gap: 8px; color: var(--text); }
+.thinking-text { white-space: pre-wrap; color: var(--muted); font-size: 13px; line-height: 1.6; padding: 4px 0; border-left: 3px solid var(--line); padding-left: 10px; }
+.process-text { font-size: 13px; color: var(--muted); }
+.process-tool.is-error .tool-result { border-color: #ffccc7; }
