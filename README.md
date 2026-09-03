@@ -62,6 +62,20 @@ wrangler deploy
 
 Worker 只做两件事：把请求透传到上游、补齐 CORS 头，路径白名单只放行 `/chat/completions` 与 `/models`。默认是**透传模式**——你的 Key 仍然只在浏览器里、由请求头带过去，Worker 不存任何 Key。若你是站长自用、不想把 Key 填进浏览器，可用 `wrangler secret put ARK_API_KEY` / `PROXY_TOKEN` 切到托管模式。
 
+### ⚠️ 「代理地址」不能填 VPN / Clash 的本地端口
+
+常见误填：把 `http://127.0.0.1:7890` 这类**系统代理端口**填进「代理地址」，结果报 400。原因是两种代理压根不是一回事：
+
+| | 正向代理（VPN / Clash / 系统代理） | 反向代理（本项目要的） |
+|---|---|---|
+| 客户端怎么用 | 配置成「我的出口」，它只搬字节 | 当成服务端直接请求它 |
+| 能否改响应头 | ❌ Clash / Mihomo 不支持响应改写 | ✅ 这就是它的全部工作 |
+| 能否解跨域 | ❌ | ✅ |
+
+浏览器判不判跨域，只看**响应头**里有没有 `Access-Control-Allow-Origin` / `Allow-Headers`；只搬字节的东西加不了这些头。而 7890 讲的是 HTTP-proxy 协议，对一个普通 `POST /chat/completions` 只会回 400。设置页已经会识别这类地址并给出提示，旁边的「测试连接」按钮可以先打一发 1 token 的探测请求。
+
+同理，**Cloudflare Worker 不是 Service Worker**：前者跑在边缘服务器上，是服务端到服务端，不受同源策略约束；后者跑在浏览器里，跨域拿到的仍是 opaque response。要解跨域，只能把请求挪出浏览器。
+
 ---
 
 ## 隐私与边界
