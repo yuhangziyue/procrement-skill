@@ -43,6 +43,14 @@
 | **标准按量端点** | `https://ark.cn-beijing.volces.com/api/v3` | ✅ 可以 | 设置里填这个 Base URL + Key，直接用 |
 | **Coding Plan 端点** | `https://ark.cn-beijing.volces.com/api/coding/v3` | ❌ 不行 | CORS 预检不放行 `Authorization` 头（2026-09-03 实测，`access-control-allow-headers` 只有 `Origin,Content-Length,Content-Type`），浏览器发出的请求会被拦。**要用 Coding Plan Key，需自行部署 [`proxy/worker.js`](proxy/worker.js)**，再在设置的「代理地址」里填 Worker 的 URL |
 
+**没有 Cloudflare 时的过渡方案：把本机 dev server 当个人代理**（只对你自己这台电脑有效）
+
+```bash
+npm run dev          # 本机起 http://localhost:5173，自带 /ark → 方舟 的代理
+```
+然后在线上页面「设置」里选「方舟 Coding Plan（经代理）」，代理地址填 `http://localhost:5173/ark/coding/v3`。
+dev server 已配好三件事：`cors: true`（放行 github.io 来源）、预检带 `Access-Control-Allow-Private-Network`（Chrome 公网页面访问 localhost 必需）、剥掉上游重复的 CORS 头（否则叠成 `*,*` 被浏览器判非法）。关掉 dev server 线上页面就连不上，这不是 bug。
+
 **部署代理（Cloudflare Worker，免费额度 10 万次/天）**：
 
 ```bash
