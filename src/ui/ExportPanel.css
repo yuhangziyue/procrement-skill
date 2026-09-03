@@ -1,0 +1,10 @@
+/* 导出 / 备份抽屉——只加 .export-* 前缀类 */
+.export-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0; }
+.export-check { display: inline-flex !important; align-items: center; gap: 6px; margin: 0 !important; font-size: 13px; color: var(--muted); }
+.export-check input { display: inline-block !important; width: auto !important; margin: 0 !important; }
+.export-hint { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+.export-last { color: var(--text); font-weight: 600; }
+.export-never { color: #ad4e00; }
+.export-status { margin: 0; padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+.export-status.ok { background: #f6ffed; border: 1px solid #b7eb8f; margin-left: 0; }
+.export-status.error { background: #fff1f0; border: 1px solid #ffccc7; }

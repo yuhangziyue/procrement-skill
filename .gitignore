@@ -1,0 +1,31 @@
+# deps / build
+node_modules/
+dist/
+.vite/
+*.log
+
+# secrets — API Key 永不进仓
+.env
+.env.*
+!.env.example
+
+# 私有采购资料 — 供应商实名 / 物料编码 / 真人带教档案，只能留在用户浏览器
+*.csv
+*.xlsx
+*.xls
+my-*
+mentee-*
+caigou-*
+supplier-*
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
+
+# 脱敏模板放行（只放字段头 + 示例，不含实数据）
+!templates/
+!templates/**
+
+# 内部规划书含真人名字与私有文件名，只留本地，不进公开仓（公开版另出 docs/ARCHITECTURE.md）
+docs/PLAN.md

@@ -1,0 +1,5 @@
+name = "xiaocai-ark-proxy"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# 托管模式的 secret 不写在这里，用 `wrangler secret put ARK_API_KEY` / `wrangler secret put PROXY_TOKEN`
