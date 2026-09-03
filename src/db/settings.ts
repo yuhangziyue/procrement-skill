@@ -42,11 +42,33 @@ export const LLM_PRESETS: { id: string; label: string; hint: string; value: LlmS
   },
 ];
 
+// 默认预设：站点还没内置代理地址时，默认走浏览器能直连的标准端点——Coding Plan 端点不配代理必挂（线上 2026-09-03 实测 "Connection error."）。
+// Worker 部署后把 DEFAULT_PROXY_URL 填上，默认就自动切回 Coding Plan。
+const DEFAULT_PRESET = DEFAULT_PROXY_URL ? LLM_PRESETS[0] : LLM_PRESETS[1];
 export const DEFAULT_LLM: LlmSettings = {
-  ...LLM_PRESETS[0].value,
-  baseUrl: ENV_BASE?.trim() || LLM_PRESETS[0].value.baseUrl,
-  modelId: ENV_MODEL?.trim() || LLM_PRESETS[0].value.modelId,
+  ...DEFAULT_PRESET.value,
+  baseUrl: ENV_BASE?.trim() || DEFAULT_PRESET.value.baseUrl,
+  modelId: ENV_MODEL?.trim() || DEFAULT_PRESET.value.modelId,
 };
+
+/** Coding Plan 端点 + 没填代理 ⇒ 浏览器一定连不上；给 UI 用的前置判断 */
+export function needsProxy(s: LlmSettings): boolean {
+  return s.baseUrl.startsWith(ARK_CODING_URL) && !s.proxyUrl?.trim() && !(import.meta.env.DEV && typeof location !== "undefined");
+}
+
+/** 把 SDK / 网络层的黑话翻译成使用者能动手的话 */
+export function explainLlmError(msg: string, s?: LlmSettings): string {
+  const m = msg.toLowerCase();
+  if (/connection error|failed to fetch|networkerror|load failed/.test(m)) {
+    return s && needsProxy(s)
+      ? "浏览器无法直连 Coding Plan 端点（服务端 CORS 不放行）。去「设置」填代理地址，或切换到「方舟标准端点」预设。"
+      : "网络连不上模型端点：检查网络 / 代理地址是否正确、是否在线。";
+  }
+  if (/401|authentication|api key/.test(m)) return "Key 无效或格式不对：去「设置」重新粘贴 API Key（方舟 Key 以 ark- 开头）。";
+  if (/404|notfound|does not exist|no access/.test(m)) return "这个模型在当前端点不可用：标准端点需先在方舟控制台开通对应模型；Coding Plan 模型只在 coding 端点可用。";
+  if (/429|rate|quota|1400001/.test(m)) return "触发限流或额度用完，稍后再试。";
+  return msg;
+}
 
 const KEY_STORAGE = "xiaocai.apiKey";
 

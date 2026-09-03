@@ -94,3 +94,7 @@ input, textarea { font: inherit; }
 .thinking-text { white-space: pre-wrap; color: var(--muted); font-size: 13px; line-height: 1.6; padding: 4px 0; border-left: 3px solid var(--line); padding-left: 10px; }
 .process-text { font-size: 13px; color: var(--muted); }
 .process-tool.is-error .tool-result { border-color: #ffccc7; }
+
+.banner.warn { background: #fff7e6; color: #874d00; border-bottom: 1px solid #ffe7ba; }
+.banner.warn .btn-link { padding: 0 4px; }
+.warn-inline { color: #874d00; background: #fff7e6; border-radius: 8px; padding: 8px 10px; font-size: 13px; margin: 6px 0; }

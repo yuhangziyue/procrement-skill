@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
 import { db, type EnhancementRow, type FeedbackRow, type SessionRow } from "./db/schema";
-import { getApiKey } from "./db/settings";
+import { explainLlmError, getApiKey, getLlmSettings, needsProxy } from "./db/settings";
 import { getFeedbackFor } from "./db/feedback";
 import { findConflicts, saveEnhancement, type EnhancementDraft } from "./db/enhancements";
 import { createAgent } from "./agent/create-agent";
@@ -28,6 +28,7 @@ export function App() {
   const [error, setError] = useState<string>();
   const [panel, setPanel] = useState<Panel>(null);
   const [hasKey, setHasKey] = useState(!!getApiKey());
+  const [proxyMissing, setProxyMissing] = useState(false);
   const [feedback, setFeedback] = useState<Map<string, FeedbackRow>>(new Map());
   const [draft, setDraft] = useState<{ draft: EnhancementDraft & { sourceSessionId?: string }; conflicts: EnhancementRow[]; existing: EnhancementRow[] }>();
   const agentRef = useRef<Agent>();
@@ -38,6 +39,8 @@ export function App() {
     setSessions(rows);
     return rows;
   }, []);
+
+  const refreshProxyCheck = useCallback(async () => setProxyMissing(needsProxy(await getLlmSettings())), []);
 
   const refreshFeedback = useCallback(async (sessionId: string) => setFeedback(await getFeedbackFor(sessionId)), []);
 
@@ -78,7 +81,7 @@ export function App() {
         setStreaming(undefined);
         setMessages([...agent.state.messages]);
         setBusy(false);
-        if (agent.state.errorMessage) setError(agent.state.errorMessage);
+        if (agent.state.errorMessage) setError(explainLlmError(agent.state.errorMessage, await getLlmSettings()));
         await persist(sessionId, agent.state.messages);
       }
     });
@@ -94,6 +97,7 @@ export function App() {
       }
       setCurrentId(rows[0].id);
       await mountAgent(rows[0].id);
+      await refreshProxyCheck();
     })();
     // 「教它」草稿 → 预览确认
     return onEnhancementDraft(async (d) => {
@@ -152,6 +156,7 @@ export function App() {
   /** 任何影响系统提示的变化（设置 / 增强卡 / 资料）→ 重建 Agent，历史消息原样带过去 */
   const rebuild = async () => {
     setHasKey(!!getApiKey());
+    await refreshProxyCheck();
     if (currentId) await mountAgent(currentId);
   };
 
@@ -185,11 +190,18 @@ export function App() {
             <button class="btn" onClick={() => setPanel("settings")}>⚙ 设置{!hasKey && <span class="dot" />}</button>
           </div>
         </header>
+        {proxyMissing && (
+          <div class="banner warn">
+            ⚠️ 当前选的是 Coding Plan 端点但没填代理地址——浏览器直连会被 CORS 拦住。去
+            <button class="btn-link" onClick={() => setPanel("settings")}>设置</button>
+            填代理地址，或切到「方舟标准端点」预设。
+          </div>
+        )}
         {error && <div class="banner error">⚠️ {error}</div>}
         {currentId && (
           <MessageList sessionId={currentId} messages={messages} streaming={streaming} feedback={feedback} onFeedbackChange={() => currentId && refreshFeedback(currentId)} onTeach={teach} />
         )}
-        <Composer disabled={!hasKey} streaming={busy} onSend={send} onAbort={abort} />
+        <Composer disabled={!hasKey || proxyMissing} streaming={busy} onSend={send} onAbort={abort} />
       </main>
       <SettingsPanel open={panel === "settings"} onClose={() => setPanel(null)} onSaved={rebuild} />
       <MaterialsPanel open={panel === "materials"} onClose={() => setPanel(null)} onChanged={rebuild} />

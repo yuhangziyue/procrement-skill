@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import {
   DEFAULT_LLM,
   LLM_PRESETS,
+  needsProxy,
   DEV_LOCKED,
   getApiKey,
   getCompanyConfig,
@@ -88,6 +89,9 @@ export function SettingsPanel({ open, onClose, onSaved }: Props) {
             模型 ID
             <input value={llm.modelId} onInput={(e) => setLlm({ ...llm, modelId: (e.target as HTMLInputElement).value })} placeholder="doubao-seed-2.0-pro" />
           </label>
+          {needsProxy(llm) && (
+            <p class="warn-inline">⚠️ Coding Plan 端点浏览器不能直连，必须填下面的代理地址（部署 proxy/worker.js 后得到的 https://…workers.dev），否则发消息会报 Connection error。</p>
+          )}
           <label>
             代理地址（可选）
             <input value={llm.proxyUrl ?? ""} onInput={(e) => setLlm({ ...llm, proxyUrl: (e.target as HTMLInputElement).value })} placeholder="Coding Plan 端点不放行浏览器直连时填 Worker 地址" />
