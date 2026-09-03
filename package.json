@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "guard": "node scripts/privacy-guard.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy:pages": "npm run build && node scripts/deploy-pages.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.84.4",

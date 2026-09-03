@@ -1,4 +1,15 @@
-name: Deploy to GitHub Pages
+# 发布链路（2026-09-03 参考 life-os 实证改造）
+#
+# Pages 的 Source = Deploy from a branch: gh-pages /(root)。
+# 本 workflow 在 master 每次 push 后：校验 → 构建 → 把 dist/ 推到 gh-pages 分支，
+# 真正的发布由 GitHub 内置的 "pages build and deployment" 完成。
+# 判据：Actions 列表里出现内置的 pages build and deployment 且成功 ⇒ 线上已更新。
+#
+# 之前走 upload-pages-artifact + deploy-pages（Source=GitHub Actions）连败三次：
+# 站点不存在时 deploy-pages 直接失败，configure-pages enablement 也因 GITHUB_TOKEN 无权而失败。
+# gh-pages 分支对 Settings 的依赖最小，本地 `npm run deploy:pages` 与 CI 走同一脚本，不会漂。
+
+name: Build & publish to gh-pages
 
 on:
   push:
@@ -6,25 +17,19 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write   # 推 gh-pages 分支
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # 尝试自动创建/配置 Pages 站点（仓库若未开 Pages，GITHUB_TOKEN 权限够时可直接开）
-      # GITHUB_TOKEN 无权自动开站（2026-09-03 实测失败），Pages 需在仓库 Settings → Pages 手动启用；此步失败不阻塞
-      - uses: actions/configure-pages@v5
-        continue-on-error: true
         with:
-          enablement: true
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -32,16 +37,5 @@ jobs:
       - run: npm ci
       # 隐私守卫：命中供应商实名 / 真人姓名 / 客户品牌词即失败，宁可发布不了也不泄露
       - run: npm run guard
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - run: npm test
+      - run: npm run deploy:pages
