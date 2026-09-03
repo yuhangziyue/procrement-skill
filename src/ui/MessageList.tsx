@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "preact/hooks";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { FeedbackRow } from "../db/schema";
 import { renderMarkdown } from "../util/markdown";
+import { explainLlmError } from "../db/settings";
 import { FeedbackBar } from "./FeedbackBar";
 
 interface Props {
@@ -208,7 +209,7 @@ export function MessageList({ sessionId, messages, streaming, feedback, onFeedba
                     {finalBlocks.map((b, i) =>
                       b.type === "text" && b.text ? <div key={i} class="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(b.text) }} /> : null,
                     )}
-                    {final.m.stopReason === "error" && <div class="error">⚠️ {final.m.errorMessage || "请求失败"}</div>}
+                    {final.m.stopReason === "error" && <div class="error">⚠️ {explainLlmError(final.m.errorMessage || "请求失败")}</div>}
                     {finalLive && <span class="cursor">▍</span>}
                   </div>
                   {!finalLive && finalText && (
