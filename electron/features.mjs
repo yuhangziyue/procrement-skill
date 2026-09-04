@@ -92,14 +92,30 @@ export function searchChunks(query, { limit = 6, category } = {}) {
 
 // ---------- 看板 ----------
 const TASK_COLS = ["id","kind","title","materialCode","materialName","supplier","poNo","qty","needDate","promiseDate","dueDate",
-  "stage","status","score","reasons","steps","doneSteps","doneRule","escalation","sourceRow","note","bizDate","createdAt","updatedAt","closedAt"];
-const JSON_COLS = new Set(["reasons","steps","doneSteps","sourceRow"]);
+  "stage","status","score","reasons","steps","doneSteps","doneRule","escalation","sourceRow","note","bizDate","createdAt","updatedAt","closedAt",
+  "band","bandRule","bandWhy","primaryAction","editable","doneEvidence","tutorialId","coverageDays","arriveDate","awaitingApproval","isUrgent"];
+const JSON_COLS = new Set(["reasons","steps","doneSteps","sourceRow","primaryAction","editable","doneEvidence"]);
+const OBJ_COLS = new Set(["sourceRow", "primaryAction", "editable", "doneEvidence"]);
 const encTask = (t) => TASK_COLS.map((c) => {
   const v = t[c];
-  if (JSON_COLS.has(c)) return JSON.stringify(v ?? (c === "sourceRow" ? {} : []));
+  if (JSON_COLS.has(c)) return JSON.stringify(v ?? (OBJ_COLS.has(c) ? {} : []));
+  if (c === "awaitingApproval" || c === "isUrgent") return v ? 1 : 0;
   return v === undefined ? null : v;
 });
-const decTask = (r) => { const o = { ...r }; for (const c of JSON_COLS) { try { o[c] = JSON.parse(r[c] ?? "null"); } catch { o[c] = null; } } return o; };
+const decTask = (r) => {
+  // SQLite 的空值是 null，而 TS 侧这些可选字段的类型是 `T | undefined`。
+  // 不在边界统一转换，下游每个 `x !== undefined` 判断都会对 null 判真——
+  // 实测踩过：coverageDays 为 null 时 `null < 3` 成立，规则命中后 `null.toFixed()` 直接崩，
+  // 整个看板被 catch 吞成"没有数据"。这类 bug 只能在边界一次性解决。
+  const o = {};
+  for (const [k, v] of Object.entries(r)) o[k] = v === null ? undefined : v;
+  for (const c of JSON_COLS) { try { o[c] = JSON.parse(r[c] ?? "null") ?? undefined; } catch { o[c] = undefined; } }
+  // 老卡的 steps 没有 role：一律按 hint 处理，不阻塞完成，也不回写（免得把老卡锁死）
+  if (Array.isArray(o.steps)) o.steps = o.steps.map((s) => (s && !s.role ? { ...s, role: "hint" } : s));
+  o.awaitingApproval = !!r.awaitingApproval;
+  o.isUrgent = !!r.isUrgent;
+  return o;
+};
 
 export function listTasks({ bizDate, includeClosed = true } = {}) {
   const db = handle();
@@ -129,6 +145,15 @@ export function deleteTasks(ids) {
   for (const id of ids) stmt.run(id);
   return ids.length;
 }
+export function listEvents(taskId) {
+  return handle().prepare("SELECT * FROM board_task_events WHERE taskId = ? ORDER BY at").all(taskId);
+}
+export function addEvent(ev) {
+  handle().prepare(`INSERT OR REPLACE INTO board_task_events (id,taskId,at,channel,counterpart,content,newPromiseDate)
+    VALUES (?,?,?,?,?,?,?)`).run(ev.id, ev.taskId, ev.at, ev.channel, ev.counterpart ?? null, ev.content, ev.newPromiseDate ?? null);
+  return ev.id;
+}
+
 export function getDay(bizDate) {
   const r = handle().prepare("SELECT * FROM board_days WHERE bizDate = ?").get(bizDate);
   return r ? { ...r, checklist: JSON.parse(r.checklist || "{}") } : { bizDate, checklist: {}, closedAt: null, note: null };

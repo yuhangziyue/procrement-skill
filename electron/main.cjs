@@ -104,6 +104,7 @@ app.whenReady().then(async () => {
     "kb.insertChunks": F.insertChunks, "kb.search": F.searchChunks, "kb.listChunks": F.listChunks,
     "board.list": F.listTasks, "board.upsert": F.upsertTasks, "board.update": F.updateTask,
     "board.delete": F.deleteTasks, "board.getDay": F.getDay, "board.setDay": F.setDay,
+    "board.events": F.listEvents, "board.addEvent": F.addEvent,
     "learn.list": F.listProgress, "learn.set": F.setProgress,
     // 盲区表复用宽表通道（id + 索引列 + data JSON），逻辑与合并规则都在渲染侧 TS 里，有单测
     "blindspot.list": () => T.tableAll("blindspots"),

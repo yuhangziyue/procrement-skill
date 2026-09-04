@@ -21,11 +21,24 @@ export interface DayResult {
   handoverText: string;
 }
 
-const isClosed = (t: BoardTask) => t.status === "done" || t.status === "dropped";
+/**
+ * **完成 = 程序判定**（v2）：主操作那 1~2 格必填凭据都填齐了，就算干完，不再看她勾了几个步骤。
+ * 勾步骤是给她自己看的过程，凭据才是当天可验证的客观事实（订单号、回签日、新交期、谁回的收到）。
+ */
+export function evidenceDone(t: BoardTask): boolean {
+  const req = (t.primaryAction?.evidence ?? []).filter((e) => e.required);
+  if (req.length === 0) return false;
+  const got = t.doneEvidence ?? {};
+  return req.every((e) => String(got[e.key] ?? "").trim() !== "");
+}
+/** 干完了 = 凭据填齐 或 状态已被置成 done（两条都认，落库的老卡不至于回退） */
+const isDone = (t: BoardTask) => t.status === "done" || evidenceDone(t);
+const isClosed = (t: BoardTask) => isDone(t) || t.status === "dropped";
 /** 「有交代」= 写了卡在谁那里 / 明天几点动它。空备注不算交代。 */
 const hasNote = (t: BoardTask) => !!(t.note && t.note.trim().length >= 2);
-/** 「今天动过」= 状态推到 doing 或勾过步骤 */
-const acted = (t: BoardTask) => t.status === "doing" || (t.doneSteps?.length ?? 0) > 0;
+/** 「今天动过」= 推到 doing / 记过一笔 / 凭据填了一半（催了但对方没回，不是她的错） */
+const acted = (t: BoardTask) =>
+  t.status === "doing" || (t.events?.length ?? 0) > 0 || Object.values(t.doneEvidence ?? {}).some((v) => String(v ?? "").trim() !== "");
 
 const nameOf = (t: BoardTask) => t.materialName || t.materialCode || t.poNo || t.title;
 
@@ -33,7 +46,7 @@ const nameOf = (t: BoardTask) => t.materialName || t.materialCode || t.poNo || t
 function settled(tasks: BoardTask[], kinds: TaskKind[], opts?: { actedIsEnough?: boolean }) {
   const mine = tasks.filter((t) => kinds.includes(t.kind) && t.status !== "dropped");
   const open = mine.filter((t) => !isClosed(t) && !hasNote(t) && !(opts?.actedIsEnough && acted(t)));
-  return { total: mine.length, done: mine.filter((t) => t.status === "done").length, open };
+  return { total: mine.length, done: mine.filter(isDone).length, open };
 }
 
 export function evaluateDay(tasks: BoardTask[], checklist: Record<string, boolean>, bizDate: string): DayResult {
@@ -112,8 +125,8 @@ export function evaluateDay(tasks: BoardTask[], checklist: Record<string, boolea
 export function handoverText(tasks: BoardTask[], bizDate: string): string {
   const [, m, d] = bizDate.split("-");
   const day = `${Number(m)}/${Number(d)}`;
-  const done = tasks.filter((t) => t.status === "done");
-  const stuck = tasks.filter((t) => t.status !== "done" && t.status !== "dropped");
+  const done = tasks.filter(isDone);
+  const stuck = tasks.filter((t) => !isDone(t) && t.status !== "dropped");
 
   // 句一：做成了什么
   const orderedCnt = done.filter((t) => t.kind === "T1_shortage" || t.kind === "T2_addon").length;

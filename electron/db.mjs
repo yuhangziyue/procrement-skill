@@ -34,6 +34,8 @@ export function openDb(file) {
 export const handle = () => db;
 
 function migrate() {
+  // 一次性迁移的记账表：迁过就不再迁，避免用户改了值又被脚本改回去
+  db.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
   for (const [table, idx] of Object.entries(TABLE_SPEC)) {
     const cols = [`${pk(table)} TEXT PRIMARY KEY`, ...idx.map((c) => `${c} ${NUM_COLS.has(c) ? "INTEGER" : "TEXT"}`), "data TEXT NOT NULL"];
     db.exec(`CREATE TABLE IF NOT EXISTS ${table} (${cols.join(", ")})`);
@@ -69,6 +71,28 @@ function migrate() {
     bizDate TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, closedAt INTEGER)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_date ON board_tasks(bizDate, status)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_stage ON board_tasks(stage)`);
+  // ── v2 迁移：泳道枚举改名 + 新列 + 跟进记录表 ──
+  // 老库里 stage 存的是旧值（order/confirm），不迁的话这些卡在新界面上一张都显示不出来。
+  // 已 done 的卡也要迁，否则日清统计与导出按旧枚举取不到（规格 §1.5 点名）。
+  for (const c of [["band", "TEXT"], ["bandRule", "TEXT"], ["bandWhy", "TEXT"],
+                   ["primaryAction", "TEXT NOT NULL DEFAULT '{}'"], ["editable", "TEXT NOT NULL DEFAULT '{}'"],
+                   ["doneEvidence", "TEXT NOT NULL DEFAULT '{}'"], ["tutorialId", "TEXT"],
+                   ["coverageDays", "REAL"], ["arriveDate", "TEXT"],
+                   ["awaitingApproval", "INTEGER NOT NULL DEFAULT 0"], ["isUrgent", "INTEGER NOT NULL DEFAULT 0"]]) {
+    ensureColumn("board_tasks", c[0], c[1]);
+  }
+  if (!db.prepare("SELECT value FROM meta WHERE key='board_stage_v2'").get()) {
+    db.exec(`UPDATE board_tasks SET stage='to_order' WHERE stage IN ('order','confirm')`);
+    db.exec(`UPDATE board_tasks SET stage='demand' WHERE kind IN ('T1B_late','T3_intercept','T10_daily_check')`);
+    db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('board_stage_v2', ?)").run(String(Date.now()));
+    console.log("[xiaocai] 已迁移看板泳道枚举到 v2");
+  }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_task_band ON board_tasks(bizDate, band, score DESC)`);
+  db.exec(`CREATE TABLE IF NOT EXISTS board_task_events (
+    id TEXT PRIMARY KEY, taskId TEXT NOT NULL, at TEXT NOT NULL,
+    channel TEXT NOT NULL, counterpart TEXT, content TEXT NOT NULL, newPromiseDate TEXT)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_event_task ON board_task_events(taskId, at)`);
+
   db.exec(`CREATE TABLE IF NOT EXISTS board_days (
     bizDate TEXT PRIMARY KEY, checklist TEXT NOT NULL DEFAULT '{}', closedAt INTEGER, note TEXT)`);
 

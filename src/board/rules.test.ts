@@ -1,7 +1,7 @@
 // 排序与硬规则 R1~R4 的回归测试。最要紧的一条是 R4：**排序必须稳定**——
 // 她昨天记住的顺序今天不能莫名其妙变，所以打乱输入两次，输出必须一模一样。
 import { describe, expect, it } from "vitest";
-import { compareTasks, groupMatesOf, groupOpeningLine, rankTasks, TOP_N } from "./rules";
+import { compareTasks, groupMatesOf, groupOpeningLine, rankTasks } from "./rules";
 import type { BoardTask, TaskKind } from "./types";
 
 let seq = 0;
@@ -9,6 +9,12 @@ function card(p: Partial<BoardTask> & { id: string; score: number }): BoardTask 
   const kind: TaskKind = p.kind ?? "T5_transit";
   return {
     id: p.id, kind, stage: p.stage ?? "transit", status: p.status ?? "todo",
+    band: p.band ?? "follow", bandRule: p.bandRule ?? "F1", bandWhy: p.bandWhy ?? "今天问一句",
+    primaryAction: p.primaryAction ?? {
+      id: "act", label: "问到发运信息 →", actionKind: "call",
+      evidence: [{ key: "note", label: "对方说了什么", type: "text", required: true }],
+    },
+    editable: {}, events: [],
     title: p.title ?? `盯 ${p.id}`, materialCode: p.materialCode, materialName: p.materialName,
     supplier: p.supplier, poNo: p.poNo, qty: p.qty, needDate: p.needDate, promiseDate: p.promiseDate,
     dueDate: p.dueDate, score: p.score, reasons: [], steps: [], doneSteps: [],
@@ -19,7 +25,7 @@ function card(p: Partial<BoardTask> & { id: string; score: number }): BoardTask 
 
 /** 一副真实感的牌：三拼腰封逾期、纸盒待回签、纸托在途、贴纸补货 */
 const deck = (): BoardTask[] => [
-  card({ id: "b-纸盒A", score: 62, kind: "T4_unconfirmed", stage: "confirm", supplier: "样例纸品", materialCode: "11101011", materialName: "彩印纸盒A", needDate: "2026-09-10", poNo: "PO26-0871" }),
+  card({ id: "b-纸盒A", score: 62, kind: "T4_unconfirmed", stage: "to_order", supplier: "样例纸品", materialCode: "11101011", materialName: "彩印纸盒A", needDate: "2026-09-10", poNo: "PO26-0871" }),
   card({ id: "a-三拼腰封", score: 182.1, kind: "T8_overdue", supplier: "示例包材", materialCode: "1110919", materialName: "三拼腰封AL", needDate: "2026-09-04", poNo: "PO26-0863" }),
   card({ id: "d-单片贴纸", score: 22, kind: "T5_transit", supplier: "样例纸品", materialCode: "1107859", materialName: "单片贴纸", needDate: "2026-09-22", poNo: "PO26-0880" }),
   card({ id: "c-纸托", score: 62, kind: "T5_transit", supplier: "示例包材", materialCode: "11101016", materialName: "内衬纸托", needDate: "2026-09-08", poNo: "PO26-0874" }),
@@ -79,21 +85,40 @@ describe("R4 稳定排序", () => {
   });
 });
 
-describe("R3 今天三件事最多 3 张", () => {
-  it("4 张活卡只推 3 张，第 4 张折回泳道", () => {
-    const r = rankTasks(deck());
-    expect(r.top3).toHaveLength(TOP_N);
-    expect(r.ordered).toHaveLength(4);
-    expect(r.top3.map((t) => t.id)).toEqual(["a-三拼腰封", "c-纸托", "b-纸盒A"]);
+describe("先按 band 分区，再在档内按分数排（v2：「今天三件事」横幅已砍）", () => {
+  const banded = () => [
+    card({ id: "n-贴纸", score: 90, band: "notice", bandRule: "N1", kind: "T3_intercept" }),
+    card({ id: "u-腰封", score: 20, band: "urgent", bandRule: "U7", kind: "T8_overdue" }),
+    card({ id: "f-纸盒", score: 60, band: "follow", bandRule: "F3", kind: "T4_unconfirmed" }),
+    card({ id: "u-纸托", score: 40, band: "urgent", bandRule: "U5" }),
+  ];
+
+  it("三个分区各就各位，分数再高也翻不出自己的档", () => {
+    const r = rankTasks(banded());
+    expect(r.byBand.urgent.map((t) => t.id)).toEqual(["u-纸托", "u-腰封"]);
+    expect(r.byBand.follow.map((t) => t.id)).toEqual(["f-纸盒"]);
+    expect(r.byBand.notice.map((t) => t.id)).toEqual(["n-贴纸"]);
   });
 
-  it("已经干完的卡不进「今天三件事」", () => {
-    const t = deck().map((c) => (c.id === "a-三拼腰封" ? { ...c, status: "done" as const } : c));
-    expect(rankTasks(t).top3.map((x) => x.id)).not.toContain("a-三拼腰封");
+  it("ordered 是三档首尾相接：紧急 → 日常跟进 → 提醒", () => {
+    expect(rankTasks(banded()).ordered.map((t) => t.id)).toEqual(["u-纸托", "u-腰封", "f-纸盒", "n-贴纸"]);
   });
 
-  it("一张卡都没有时 top3 是空数组，不报错", () => {
-    expect(rankTasks([])).toEqual({ ordered: [], top3: [], groups: [] });
+  it("档内仍按 compareTasks 全序：分数降序，同分兜到需求日/编码/id", () => {
+    const r = rankTasks(banded());
+    expect(r.byBand.urgent[0].score).toBeGreaterThan(r.byBand.urgent[1].score);
+  });
+
+  it("打乱输入，分区结果一模一样（band 分区不破坏稳定排序）", () => {
+    const a = rankTasks(shuffle(banded(), 3)).ordered.map((t) => t.id);
+    const b = rankTasks(shuffle(banded(), 77)).ordered.map((t) => t.id);
+    expect(a).toEqual(b);
+  });
+
+  it("一张卡都没有时三个桶都是空数组，不报错，也没有 top3 这回事", () => {
+    const r = rankTasks([]);
+    expect(r).toEqual({ byBand: { urgent: [], follow: [], notice: [] }, ordered: [], groups: [] });
+    expect("top3" in r).toBe(false);
   });
 });
 
@@ -111,8 +136,8 @@ describe("R2 同供应商合并成一次沟通", () => {
 
   it("下单类不并组——那是自己在 U8 里干的活，不进同一通电话", () => {
     const t = [
-      card({ id: "o1", score: 70, kind: "T1_shortage", stage: "order", supplier: "示例包材" }),
-      card({ id: "o2", score: 60, kind: "T1_shortage", stage: "order", supplier: "示例包材" }),
+      card({ id: "o1", score: 70, kind: "T1_shortage", stage: "to_order", supplier: "示例包材" }),
+      card({ id: "o2", score: 60, kind: "T1_shortage", stage: "to_order", supplier: "示例包材" }),
     ];
     expect(rankTasks(t).groups).toHaveLength(0);
   });

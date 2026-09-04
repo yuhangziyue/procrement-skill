@@ -1,0 +1,30 @@
+/* 可写字段编辑面板样式。全部走 styles.css 的令牌，不出现裸色值。
+   冲突展示（.editor-fact + .editor-judgment）是全站唯一样式——不许有第二种画法。 */
+.editor-backdrop { position: fixed; inset: 0; background: color-mix(in srgb, var(--ink) 45%, transparent); display: flex; align-items: center; justify-content: center; z-index: 50; padding: var(--sp-4); }
+.editor-panel { width: min(560px, 100%); max-height: min(84vh, 720px); background: var(--card); border-radius: var(--r-3); box-shadow: var(--shadow-3); display: flex; flex-direction: column; overflow: hidden; }
+.editor-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line); }
+.editor-head h3 { margin: 0; font-size: var(--fs-4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+
+.editor-field { display: flex; flex-direction: column; gap: 6px; }
+.editor-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.editor-label { font-size: var(--fs-2); color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+
+.input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--r-1); background: var(--bg); color: var(--text); width: 100%; }
+.input:focus-visible { border-color: var(--brand); }
+.editor-textarea { resize: vertical; }
+
+/* 事实/判断冲突展示：① 事实值在上，永不变动；② 判断值缩进一行，带来源/时间戳；③ [用这个] 只回调不改数据 */
+.editor-fact { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: var(--fs-3); }
+.editor-fact-label { color: var(--muted); flex: none; }
+.editor-fact-value { font-weight: 600; color: var(--text); }
+.editor-fact-src { color: var(--ink-3); font-size: var(--fs-1); }
+.editor-judgment { display: flex; align-items: center; gap: 8px; padding-left: var(--sp-4); flex-wrap: wrap; }
+.editor-judgment-stack { align-items: flex-start; }
+.editor-judgment-arrow { color: var(--ink-3); flex: none; }
+.editor-judgment-inputs { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.editor-judgment-inputs .input { width: auto; flex: 1; min-width: 140px; }
+.editor-note { margin: 0; padding-left: calc(var(--sp-4) + 16px); font-size: var(--fs-1); color: var(--muted); }
+.editor-note-ok { color: var(--ok); }
+
+.editor-foot { flex: none; display: flex; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--line); }

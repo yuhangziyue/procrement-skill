@@ -3,7 +3,7 @@
 //
 // 这一层唯一的硬要求是：**同样一批卡，无论以什么顺序传进来，出来的顺序必须一模一样**。
 // 她昨天记住的顺序今天不能莫名其妙变——所以比较链一路兜到 id（唯一），构成全序，不依赖 Array#sort 的稳定性。
-import type { BoardTask } from "./types";
+import { BANDS, type Band, type BoardTask } from "./types";
 
 /** 排最后的日期占位：没填需求日的卡不能因为「空」而插队 */
 const FAR_FUTURE = "9999-12-31";
@@ -13,9 +13,6 @@ const STATUS_RANK: Record<BoardTask["status"], number> = { todo: 0, doing: 0, do
 
 /** 需要「打电话/发消息给供应商」的卡才值得并组：下单是自己在 U8 里干的活，并不进同一通电话 */
 const CALLABLE = new Set<BoardTask["kind"]>(["T4_unconfirmed", "T5_transit", "T8_overdue", "T9_discrepancy", "T7_not_stocked"]);
-
-/** 「今天三件事」最多几张（R3：一次一件事是铁律，不是建议） */
-export const TOP_N = 3;
 
 /** R4 的比较链：状态桶 → 分数降序 → 需求日升序 → 物料编码升序 → id 升序 */
 export function compareTasks(a: BoardTask, b: BoardTask): number {
@@ -32,17 +29,26 @@ export function compareTasks(a: BoardTask, b: BoardTask): number {
 
 const isActive = (t: BoardTask) => t.status === "todo" || t.status === "doing";
 
+/** 档序：紧急 → 日常跟进 → 提醒。band 决定分区，score 只在档内说话——两者打架时 band 赢。 */
+export const BAND_ORDER: Band[] = BANDS.map((b) => b.id);
+
 export interface RankResult {
+  /** 三个分区，每区内部按 compareTasks 全序排好。这是界面唯一该消费的结构 */
+  byBand: Record<Band, BoardTask[]>;
+  /** 三区首尾相接的平铺视图（收工三句话、导出这类场景要一条线的顺序） */
   ordered: BoardTask[];
-  top3: BoardTask[];
   groups: { supplier: string; taskIds: string[] }[];
 }
 
+/**
+ * 先按 band 分三桶，再桶内按 compareTasks 排。
+ * 「今天三件事」横幅已砍——urgent 分区本身就是横幅，一屏两处置顶是重复。
+ */
 export function rankTasks(tasks: BoardTask[]): RankResult {
-  const ordered = [...tasks].sort(compareTasks);
-
-  // R3 限 3：只从还能动的卡里选，第 4 张起折叠回泳道
-  const top3 = ordered.filter(isActive).slice(0, TOP_N);
+  const sorted = [...tasks].sort(compareTasks);
+  const byBand = { urgent: [] as BoardTask[], follow: [] as BoardTask[], notice: [] as BoardTask[] } satisfies Record<Band, BoardTask[]>;
+  for (const t of sorted) byBand[t.band ?? "notice"].push(t);
+  const ordered = BAND_ORDER.flatMap((b) => byBand[b]);
 
   // R2 合并：同一供应商 ≥2 张活卡 → 一次沟通解决三张单。
   // 只打组标记，**不删卡、不造合并卡**——一张卡只能有一个家（苏姐 §3.2）。
@@ -64,7 +70,7 @@ export function rankTasks(tasks: BoardTask[]): RankResult {
       return sy - sx || (x.supplier < y.supplier ? -1 : x.supplier > y.supplier ? 1 : 0);
     });
 
-  return { ordered, top3, groups };
+  return { byBand, ordered, groups };
 }
 
 /** 给界面用：某张卡属于哪一组（一次沟通能顺带解决的伙伴） */

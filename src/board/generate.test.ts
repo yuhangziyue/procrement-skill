@@ -1,7 +1,9 @@
 // 卡片生成的回归测试。用真实的物料和供应商：三拼腰封AL / 彩印纸盒A / 瓦楞隔板 / 单片贴纸，
 // 供应商示例包材、样例纸品——测试数据长得像她手上的表，出问题一眼能看出是哪种情形。
 import { describe, expect, it } from "vitest";
-import { generateTasks, nearestCodes, normalizeHeader, pickColumn, taskId, workdaysBetween, STAGE_OF } from "./generate";
+import { assertCard, conflictCard, generateTasks, nearestCodes, normalizeHeader, pickColumn, stageOf, taskId, workdaysBetween, STAGE_OF } from "./generate";
+import { bandFactsOf, bandOf } from "./band";
+import { TUTORIAL_OF } from "../tutorial/link";
 import type { BoardTask } from "./types";
 
 const BIZ = "2026-09-03"; // 周四
@@ -37,7 +39,7 @@ describe("优雅降级：只导一张生产表也要出卡", () => {
   it("只有生产表 → 「要下单」泳道照样有卡", () => {
     const { tasks } = generateTasks({ production: [{ 存货编码: "11101011", 需求数量: "6000", 需求日期: "2026-09-30" }] }, BIZ);
     expect(tasks.length).toBeGreaterThan(0);
-    expect(tasks.every((t) => t.stage === "order")).toBe(true);
+    expect(tasks.every((t) => t.stage === "to_order")).toBe(true);
     expect(kindsOf(tasks)).toContain("T1_shortage");
   });
 
@@ -160,9 +162,9 @@ describe("T4 / T5 / T7 / T8：跟单表分流", () => {
     expect(t.escalation).toContain("主管");
   });
 
-  it("未发货且没回签 → 等确认泳道，明说「好的」不算回签", () => {
+  it("未发货且没回签 → 并入「待下单」道（回签前订单只是一厢情愿），明说「好的」不算回签", () => {
     const t = byKind(full().tasks, "T4_unconfirmed")[0];
-    expect(t.stage).toBe("confirm");
+    expect(t.stage).toBe("to_order");
     expect(t.doneRule).toContain("回一句「好的」不算回签");
     expect(t.escalation).toContain("抄送");
   });
@@ -352,9 +354,9 @@ describe("卡片质量：苏姐铁律④，缺一项的卡不许生成", () => {
     for (const t of tasks) expect(t.title).toMatch(/^(下单|找|催|要|盯|发|定性|录|处理)/);
   });
 
-  it("泳道映射与老架定稿一致，一张卡只有一个家", () => {
-    for (const t of tasks) expect(t.stage).toBe(STAGE_OF[t.kind]);
-    expect(new Set(tasks.map((t) => t.stage))).toEqual(new Set(["order", "confirm", "transit", "inbound"]));
+  it("泳道映射按 v2 四泳道，一张卡只有一个家", () => {
+    for (const t of tasks) expect(t.stage).toBe(stageOf(t.kind, { hasAuth: bandFactsOf(t).hasAuth }));
+    expect(new Set(tasks.map((t) => t.stage))).toEqual(new Set(["demand", "to_order", "transit", "inbound"]));
   });
 });
 
@@ -374,5 +376,170 @@ describe("工作日口径（不是自然日）", () => {
 
   it("taskId 把空白键收敛掉，不产出带空格的 id", () => {
     expect(taskId("T1_shortage", " PO26 0871 ", BIZ)).toBe("T1_shortage|PO26_0871|2026-09-03");
+  });
+});
+
+/* ═══════════ v2：三档 / 主操作 / 教程联动 / 两类新卡 ═══════════ */
+
+const ADDON = (auth: boolean): Record<string, string>[] => [{
+  物料编码: "11101011", 物料名称: "彩印纸盒A", 数量: "2000", 需求日期: "2026-09-20",
+  提出人: "生产二线", 是否急: "否",
+  ...(auth ? { 授权人: "车间主管", 授权凭据: "微信截图20260903" } : {}),
+}];
+
+describe("v2 泳道：T2 加单按授权分流，一张卡只有一个家", () => {
+  it("授权齐 → 待下单道；授权没齐 → 需求道（球在提出人那边）", () => {
+    const withAuth = generateTasks({ addon: ADDON(true), materials: MATERIALS }, BIZ).tasks[0];
+    const noAuth = generateTasks({ addon: ADDON(false), materials: MATERIALS }, BIZ).tasks[0];
+    expect(withAuth.stage).toBe("to_order");
+    expect(noAuth.stage).toBe("demand");
+    expect(stageOf("T2_addon", { hasAuth: true })).toBe("to_order");
+    expect(stageOf("T2_addon", { hasAuth: false })).toBe("demand");
+    // 表本身也要对：v2 四个枚举值，一个 order/confirm 都不许留
+    expect(new Set(Object.values(STAGE_OF))).toEqual(new Set(["demand", "to_order", "transit", "inbound"]));
+    expect(STAGE_OF.T4_unconfirmed).toBe("to_order");
+    expect(STAGE_OF.T13_payment).toBe("inbound");
+  });
+
+  it("拦截 / 来不及 / 日配巡检都落「需求」道", () => {
+    const { tasks } = full();
+    for (const t of tasks.filter((x) => ["T3_intercept", "T1B_late", "T10_daily_check", "T14_conflict"].includes(x.kind))) {
+      expect(t.stage, t.title).toBe("demand");
+    }
+  });
+});
+
+describe("v2 每张卡的新字段：band / 主操作 / 教程 / 覆盖天数", () => {
+  const { tasks } = full();
+
+  it("每张卡都带三档判定的三件套，bandRule 能在规则表里查到", () => {
+    for (const t of tasks) {
+      expect(["urgent", "follow", "notice"], t.title).toContain(t.band);
+      expect(t.bandRule, t.title).toMatch(/^[UFN]\d+$/);
+      expect(t.bandWhy.length, t.title).toBeGreaterThan(6);
+      expect(bandOf(t, { bizDate: BIZ }).ruleId, t.title).toBe(t.bandRule);
+    }
+  });
+
+  it("每张卡一个动词 + 1~2 格凭据，至少一格必填", () => {
+    for (const t of tasks) {
+      expect(t.primaryAction.label, t.title).toMatch(/[→>]|已|要|催|录|问|拿/);
+      expect(t.primaryAction.evidence.length, t.title).toBeGreaterThanOrEqual(1);
+      expect(t.primaryAction.evidence.length, t.title).toBeLessThanOrEqual(2);
+      expect(t.primaryAction.evidence.some((e) => e.required), t.title).toBe(true);
+    }
+  });
+
+  it("gate 步骤每卡最多 2 条，其余一律 hint", () => {
+    for (const t of tasks) {
+      expect(t.steps.filter((s) => s.role === "gate").length, t.title).toBeLessThanOrEqual(2);
+      for (const s of t.steps) expect(["gate", "hint"], t.title).toContain(s.role);
+    }
+  });
+
+  it("gate 超过 2 条是构建期错误，直接抛，不静默降级", () => {
+    const bad = {
+      kind: "T1_shortage" as const, key: "x",
+      primaryAction: { id: "a", label: "干完了 →", actionKind: "record" as const, evidence: [{ key: "k", label: "凭据", type: "text" as const, required: true }] },
+      steps: [1, 2, 3].map((n) => ({ id: `s${n}`, text: `第 ${n} 步`, role: "gate" as const })),
+    };
+    expect(() => assertCard(bad)).toThrow(/gate/);
+    expect(() => assertCard({ ...bad, steps: bad.steps.slice(0, 2) })).not.toThrow();
+  });
+
+  it("主操作凭据超过 2 格也抛——那是表单，不是「填一下就算干完」", () => {
+    expect(() => assertCard({
+      kind: "T1_shortage", key: "x", steps: [],
+      primaryAction: { id: "a", label: "干完了 →", actionKind: "record", evidence: ["a", "b", "c"].map((k) => ({ key: k, label: k, type: "text" as const, required: true })) },
+    })).toThrow(/凭据/);
+  });
+
+  it("每张卡都挂了主教程，且与 TUTORIAL_OF 一致", () => {
+    for (const t of tasks) expect(t.tutorialId, t.title).toBe(TUTORIAL_OF[t.kind]);
+  });
+
+  it("U8 指引：unknown 档不许带路径，必须给「问谁 + 开口第一句」", () => {
+    const refs = tasks.flatMap((t) => [t.primaryAction.u8Path, ...t.steps.map((s) => s.u8Path)]).filter(Boolean);
+    for (const r of refs) {
+      if (r!.confidence === "unknown") {
+        expect(r!.path).toBe("");
+        expect(r!.openQuestionId).toBeTruthy();
+        expect(r!.askScript).toContain("问老采购一句");
+      } else {
+        expect(r!.path.length).toBeGreaterThan(4);
+      }
+    }
+  });
+
+  it("下单卡的路径条来自教程真实数据，可信度不是手抄的", () => {
+    const t = byKind(tasks, "T1_shortage")[0];
+    expect(t.primaryAction.actionKind).toBe("u8");
+    expect(t.primaryAction.u8Path!.confidence).toBe("unverified");
+    expect(t.primaryAction.u8Path!.path).toContain("采购订单");
+  });
+
+  it("日配巡检卡把覆盖天数落库，band 判定与卡面都用它，不每次现算", () => {
+    const t = byKind(tasks, "T10_daily_check")[0];
+    expect(typeof t.coverageDays).toBe("number");
+  });
+});
+
+describe("T13 催付款：节点 ≤ 明天才造卡", () => {
+  const line = (d: string) => [{ 订单号: "PO26-0888", 物料编码: "11101011", 数量: "5000", 状态: "已到待入库", 付款到期日: d }];
+
+  it("付款节点是明天 → 出一张 T13，落「入库」道，命中 U9 紧急", () => {
+    const { tasks } = generateTasks({ poLines: line("2026-09-04"), materials: MATERIALS }, BIZ);
+    const t = byKind(tasks, "T13_payment")[0];
+    expect(t).toBeTruthy();
+    expect(t.stage).toBe("inbound");
+    expect(t.band).toBe("urgent");
+    expect(t.bandRule).toBe("U9");
+    expect(t.title.startsWith("催")).toBe(true);
+  });
+
+  it("节点还有半个月 → 不造卡（每天摆在她面前只会变噪音）", () => {
+    const { tasks } = generateTasks({ poLines: line("2026-09-20"), materials: MATERIALS }, BIZ);
+    expect(byKind(tasks, "T13_payment")).toHaveLength(0);
+  });
+
+  it("没有付款/开票列 → 这一类这一轮就是空的，不猜", () => {
+    expect(byKind(full().tasks, "T13_payment")).toHaveLength(0);
+  });
+
+  it("开票节点到期同样出卡，文案说的是开票不是付款", () => {
+    const { tasks } = generateTasks({ poLines: [{ 订单号: "PO26-0889", 物料编码: "11101011", 状态: "未发货", 开票日期: BIZ }], materials: MATERIALS }, BIZ);
+    expect(byKind(tasks, "T13_payment")[0].title).toContain("开票");
+  });
+});
+
+describe("T14 冲突：判断层与事实层对不上，去改数据源", () => {
+  it("生产表的名称与物料档案对不上 → 出一张核对卡，落「需求」道、提醒档", () => {
+    const { tasks } = generateTasks(
+      { production: [{ 存货编码: "11101011", 存货名称: "彩印纸盒B（旧版）", 需求数量: "1000", 需求日期: "2026-09-30" }], materials: MATERIALS },
+      BIZ,
+    );
+    const t = byKind(tasks, "T14_conflict")[0];
+    expect(t).toBeTruthy();
+    expect(t.stage).toBe("demand");
+    expect(t.bandRule).toBe("N4");
+    expect(t.title).toContain("彩印纸盒");
+  });
+
+  it("名称一致就不造卡，不制造噪音", () => {
+    const { tasks } = generateTasks(
+      { production: [{ 存货编码: "11101011", 存货名称: "彩印纸盒A", 需求数量: "1000", 需求日期: "2026-09-30" }], materials: MATERIALS },
+      BIZ,
+    );
+    expect(byKind(tasks, "T14_conflict")).toHaveLength(0);
+  });
+
+  it("[用这个] 手动触发的核对卡：只记判断，绝不替她改 U8", () => {
+    const t = conflictCard(
+      { materialCode: "11101011", materialName: "彩印纸盒A", field: "货码", factValue: "11101011", myValue: "11101016", where: "生产计划" },
+      { bizDate: BIZ, now: 1 },
+    );
+    expect(t.kind).toBe("T14_conflict");
+    expect(t.steps.some((s) => s.text.includes("不替你改 U8"))).toBe(true);
+    expect(t.primaryAction.evidence[0].options).toContain("U8 存货档案");
   });
 });

@@ -11,7 +11,9 @@ import { backwardSchedule } from "../tools/backward-schedule";
 import { calcOrderQty, type TransitLine } from "../tools/calc-order-qty";
 import { isClosedStatus, normalizeDate } from "../tools/track-status";
 import { reasonsOf, scoreTask, type ScoreContext } from "./score";
-import type { BoardTask, Stage, TaskKind, TaskStep } from "./types";
+import { BAND_FACTS_KEY, bandOf, u10Proof, type BandFacts } from "./band";
+import { TUTORIAL_OF, u8RefFor } from "../tutorial/link";
+import type { BoardTask, EvidenceField, PrimaryAction, Stage, TaskKind, TaskStep } from "./types";
 
 export interface SourceTables {
   production?: Record<string, string>[];
@@ -22,20 +24,31 @@ export interface SourceTables {
   materials?: Record<string, string>[];
 }
 
-/** 泳道映射（老架定稿）：一张卡只能有一个家 */
+/**
+ * 泳道映射（DESIGN-workbench-v2 §1「11 类任务 → 四泳道」）：划界判据是**现在是谁在动**。
+ * 一张卡只能有一个家。T2 加单按「授权齐没齐」分流，所以真正的入口是下面的 stageOf()。
+ */
 export const STAGE_OF: Record<TaskKind, Stage> = {
-  T1_shortage: "order",
-  T1B_late: "order",
-  T2_addon: "order",
-  T3_intercept: "order",
-  T10_daily_check: "order",
-  T4_unconfirmed: "confirm",
+  T1_shortage: "to_order",     // 数量已定、编码已定，剩下是她开单
+  T1B_late: "demand",          // 等的是生产/领导一句"推迟还是先到一半"，需求本身还没定死
+  T2_addon: "to_order",        // 默认按「授权齐」算；没齐的 stageOf 会改判 demand
+  T3_intercept: "demand",      // 买不买、买哪个编码，生产还没回话
+  T10_daily_check: "demand",   // 产物是一个数字（覆盖天数），不是一张定了量的单
+  T4_unconfirmed: "to_order",  // 回签前订单只是一厢情愿，「等确认」道并入待下单
   T5_transit: "transit",
   T8_overdue: "transit",
-  T6_notice: "inbound",
+  T6_notice: "inbound",        // 预告是入库这件事的第一步，动的人是仓库
   T7_not_stocked: "inbound",
   T9_discrepancy: "inbound",
+  T13_payment: "inbound",      // 上游锚点是入库单（三单匹配的第二条腿）
+  T14_conflict: "demand",      // 要的是去改数据源，等的是别人
 };
+
+/** 真正的泳道入口：加单没拿到书面授权时球在提出人那边，落「需求」而不是「待下单」 */
+export function stageOf(kind: TaskKind, d?: { hasAuth?: boolean }): Stage {
+  if (kind === "T2_addon") return d?.hasAuth ? "to_order" : "demand";
+  return STAGE_OF[kind];
+}
 
 /** 没有供应商档案时的通用兜底口径。用了就必须进 warnings，不许闷声用默认值算出一个像模像样的日期。 */
 export const FALLBACK = { productionDays: 7, transportDays: 2, onTimeRate: 0.8, arrivalBuffer: 1 } as const;
@@ -111,6 +124,10 @@ export const COLS = {
   authorizedBy: ["授权人", "审批人", "批准人"],
   evidence: ["授权凭据", "凭据", "截图", "证据", "附件"],
   urgent: ["是否急", "急件", "加急"],
+  arriveDate: ["到货日期", "实际到货日", "到货日", "收货日期"],
+  payDueDate: ["付款到期日", "付款日期", "应付日期", "付款节点"],
+  invoiceDate: ["开票日期", "开票节点", "发票日期", "应开票日"],
+  invoiceNo: ["发票号", "发票号码", "发票编号"],
   remark: ["备注", "原始备注", "说明"],
 } as const;
 
@@ -153,8 +170,23 @@ export function taskId(kind: TaskKind, key: string, bizDate: string): string {
   return `${kind}|${safe}|${bizDate}`;
 }
 
-const step = (id: string, text: string, where?: string): TaskStep => ({ id, text, where });
+/**
+ * 一步动作。role 默认 hint（参考）；gate = 不勾完主按钮点不动，**每卡最多 2 条**（build 里构建期校验）。
+ * gate 只留给「跳过去就会出事」的那一两步，多了就退化成又一张待办清单，她会整片略过。
+ */
+const step = (id: string, text: string, where?: string, role: TaskStep["role"] = "hint"): TaskStep => ({ id, text, role, where });
+const gate = (id: string, text: string, where?: string): TaskStep => step(id, text, where, "gate");
 const U8 = (path: string) => `U8：${path} ⚠️ 待实机核对`;
+
+/** 主操作：一张卡一个动词，1~2 格凭据，填齐才算干完 */
+function action(kind: TaskKind, id: string, label: string, actionKind: PrimaryAction["actionKind"], evidence: EvidenceField[]): PrimaryAction {
+  const p: PrimaryAction = { id, label, actionKind, evidence };
+  // 只有 U8 动作才印路径条；打电话/要书面/记一笔的卡，那一行留给「开口第一句」（§4.2）
+  if (actionKind === "u8") p.u8Path = u8RefFor(kind);
+  return p;
+}
+const ev = (key: string, label: string, type: EvidenceField["type"], required = true, options?: string[]): EvidenceField =>
+  ({ key, label, type, required, ...(options ? { options } : {}) });
 
 /* ═══════════════ 三、索引 ═══════════════ */
 
@@ -189,7 +221,7 @@ interface Ctx {
 
 /* ═══════════════ 四、造卡 ═══════════════ */
 
-interface Draft {
+export interface Draft {
   kind: TaskKind;
   key: string;
   title: string;
@@ -206,14 +238,58 @@ interface Draft {
   escalation: string;
   score: ScoreContext;
   sourceRow?: Record<string, unknown>;
+  /** 主操作：一张卡一个动词。必填——没有动词的卡就是一条"跟进一下"，那是 bug */
+  primaryAction: PrimaryAction;
+  /** band 判定要用、BoardTask 上没有独立字段的几个事实（见 band.ts 的 BandFacts） */
+  facts?: BandFacts;
+  coverageDays?: number;
+  arriveDate?: string;
+  isUrgent?: boolean;
+  awaitingApproval?: boolean;
+}
+
+/**
+ * 构建期校验（规格 §三.2「需要改的现有文件」第 ⑤ 条）：
+ * ① gate ≤ 2 —— 主按钮的物理约束只能拦一两步，多了她整片略过；
+ * ② confidence=unknown 的路径必须带 openQuestionId + askScript，且**不许印路径**；
+ * ③ 主操作至少一格必填凭据，最多两格 —— 填齐即完成，格子多了就变成表单。
+ * 违反就抛，不静默降级：这类错是写卡片的人写错了，要在测试里立刻红，不能带到她面前。
+ */
+export function assertCard(d: Pick<Draft, "kind" | "key" | "steps" | "primaryAction">): void {
+  const gates = d.steps.filter((s) => s.role === "gate");
+  if (gates.length > 2) throw new Error(`${d.kind} ${d.key}：gate 步骤 ${gates.length} 条，规格上限 2 条（gate 是物理约束，不是待办清单）`);
+  const paths = [d.primaryAction.u8Path, ...d.steps.map((s) => s.u8Path)].filter(Boolean);
+  for (const p of paths) {
+    if (p!.confidence === "unknown" && (p!.path !== "" || !p!.openQuestionId || !p!.askScript)) {
+      throw new Error(`${d.kind} ${d.key}：unknown 档的 U8 指引必须空路径 + 带 openQuestionId 与 askScript（印一条错路径比不印更坏）`);
+    }
+  }
+  const req = d.primaryAction.evidence.filter((e) => e.required);
+  if (req.length < 1 || d.primaryAction.evidence.length > 2) {
+    throw new Error(`${d.kind} ${d.key}：主操作凭据要 1~2 格且至少一格必填，现在是 ${d.primaryAction.evidence.length} 格 / 必填 ${req.length} 格`);
+  }
 }
 
 function build(d: Draft, ctx: Ctx): BoardTask {
+  assertCard(d);
   const b = scoreTask(d.score);
-  return {
+  const facts = d.facts ?? { demandLevel: d.score.demandLevel, stockedOut: d.score.stockedOut };
+  const sourceRow = { ...(d.sourceRow ?? {}), [BAND_FACTS_KEY]: facts };
+  const task: BoardTask = {
     id: taskId(d.kind, d.key, ctx.bizDate),
     kind: d.kind,
-    stage: STAGE_OF[d.kind],
+    stage: stageOf(d.kind, { hasAuth: facts.hasAuth }),
+    band: "notice",
+    bandRule: "N7",
+    bandWhy: "",
+    primaryAction: d.primaryAction,
+    editable: {},
+    events: [],
+    tutorialId: TUTORIAL_OF[d.kind],
+    coverageDays: d.coverageDays ?? d.score.coverageDays,
+    arriveDate: d.arriveDate,
+    isUrgent: d.isUrgent,
+    awaitingApproval: d.awaitingApproval,
     status: "todo",
     title: d.title,
     materialCode: d.materialCode,
@@ -230,12 +306,20 @@ function build(d: Draft, ctx: Ctx): BoardTask {
     doneSteps: [],
     doneRule: d.doneRule,
     escalation: d.escalation,
-    sourceRow: d.sourceRow,
+    sourceRow,
     bizDate: ctx.bizDate,
     createdAt: ctx.now,
     updatedAt: ctx.now,
     closedAt: null,
   };
+  // band 最后算：它只读这张卡自己的字段 + bizDate，所以必须等卡拼完整
+  const r = bandOf(task, { bizDate: ctx.bizDate });
+  task.band = r.band;
+  task.bandRule = r.ruleId;
+  task.bandWhy = r.why;
+  // U10 是唯一的分数反向通道，命中了要在 reasons[] 里留证，别让她以为是规则挑上来的
+  if (r.ruleId === "U10") task.reasons = [...task.reasons, u10Proof(task)];
+  return task;
 }
 
 /** 需求日 → 断线等级（苏姐 §4 的 S 因子口径） */
@@ -338,6 +422,8 @@ export function generateTasks(
   tasks.push(...fromTracking(poLines, ctx));
   tasks.push(...fromArrivals(arrivals, ctx));
   tasks.push(...dailyCheck(ctx));
+  tasks.push(...fromPayments([...poLines, ...arrivals], ctx));
+  tasks.push(...conflictCards(production, ctx));
 
   // 同一张卡被两条来源命中时保留分高的那张（一张卡只能有一个家）
   const byId = new Map<string, BoardTask>();
@@ -434,10 +520,16 @@ function fromProduction(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
         kind: "T1B_late", key: g.code,
         title: `找生产/领导定「${name}」的补救方案（最晚下单日 ${sched.latestOrderDate} 已过）`,
         materialCode: g.code, materialName: name, supplier: m?.supplier, qty, needDate, dueDate: ctx.bizDate,
+        primaryAction: action("T1B_late", "late_decision", "记下书面结论 →", "decide", [
+          ev("decision", "定的是哪个方案", "select", true, ["批加急", "生产改期", "先到一半先开线", "这条作废"]),
+          ev("proof", "书面在哪（邮件/微信原话截图）", "text", true),
+        ]),
+        facts: { demandLevel: level, stockedOut: false },
+        coverageDays: coverage,
         steps: [
-          step("s1", `打给供应商问加急实际能压到几天、加多少钱——**要文字报价，不认口头**（常规周期最早 ${sched.alternatives?.earliestArrival.date ?? "—"} 到）`, "电话 + 微信留痕"),
+          gate("s1", `打给供应商问加急实际能压到几天、加多少钱——**要文字报价，不认口头**（常规周期最早 ${sched.alternatives?.earliestArrival.date ?? "—"} 到）`, "电话 + 微信留痕"),
           step("s2", `加急能赶上就走加急；加急费超你的权限，先发一条消息请示领导：金额 + 不加急的后果 + 你的建议`, "微信/邮件，抄送领导"),
-          step("s3", `加急也不行 → 找生产给两个数字选：推迟 ${Math.max(1, -workdaysBetween(ctx.bizDate, sched.latestOrderDate))} 天，或先到一半先开线`, "面谈 + 书面确认"),
+          gate("s3", `加急也不行 → 找生产给两个数字选：推迟 ${Math.max(1, -workdaysBetween(ctx.bizDate, sched.latestOrderDate))} 天，或先到一半先开线`, "面谈 + 书面确认"),
           step("s4", "拿到书面答复后回到「缺料下单」正常开单，或把这条作废关闭并写明理由", U8("供应链→采购管理→采购订单→增加")),
         ],
         doneRule: "有一条**书面**结论（领导批加急 / 生产同意改期 / 分批方案确认），且下单卡已恢复可执行或已作废关闭。口头答应不算。",
@@ -453,9 +545,15 @@ function fromProduction(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
       kind: "T1_shortage", key: g.code,
       title: `下单「${name}」${qty}${moqNote}`,
       materialCode: g.code, materialName: name, supplier: m?.supplier, qty, needDate, dueDate: sched.latestOrderDate,
+      primaryAction: action("T1_shortage", "po_created", "已在 U8 开单 →", "u8", [
+        ev("poNo", "U8 订单号", "text", true),
+        ev("audited", "已点「审核」（保存 ≠ 生效）", "checkbox", true),
+      ]),
+      facts: { demandLevel: level, stockedOut: false },
+      coverageDays: coverage,
       steps: [
-        step("s1", `核算式输入（不是重算，是核对）：可用量取的是"可用"不是"现存"？在途里逾期未决的 ${calc.overdueTransit} 剔干净了？——${calc.steps[0] ?? ""}`, "小采：净缺口算式"),
-        ...(calc.moqOptions?.length ? [step("s2", `低于 MOQ，三选一：${calc.moqOptions.join(" ｜ ")}`, "你来定，小采不替你选")] : []),
+        gate("s1", `核算式输入（不是重算，是核对）：可用量取的是"可用"不是"现存"？在途里逾期未决的 ${calc.overdueTransit} 剔干净了？——${calc.steps[0] ?? ""}`, "小采：净缺口算式"),
+        ...(calc.moqOptions?.length ? [gate("s2", `低于 MOQ，三选一：${calc.moqOptions.join(" ｜ ")}`, "你来定，小采不替你选")] : []),
         step("s3", `按 ${sched.formula} 倒推，最晚下单日 ${sched.latestOrderDate}，今天下来得及`, "小采：交期倒推"),
         step("s4", `开采购订单，一单一供应商；计划到货日填**供应商承诺日**不是需求日 ${needDate}`, U8("供应链→采购管理→采购订单→增加")),
         step("s5", "审核（保存 ≠ 生效）→ 导出发供应商 → 回看板填订单号，自动派生「等回签」卡", U8("采购订单→审核")),
@@ -481,9 +579,14 @@ function interceptCard(code: string, name: string, qty: number, needDate: string
     kind: "T3_intercept", key: code,
     title: `找生产确认「${name}」怎么办（${status}）`,
     materialCode: code, materialName: name, qty, needDate, dueDate: needDate,
+    primaryAction: action("T3_intercept", "intercept_reply", "记下书面答复 →", "message", [
+      ev("reply", "他回的是哪一种", "select", true, ["下", "不下", "换编码"]),
+      ev("replyNote", "原话 / 新编码", "text", false),
+    ]),
+    facts: { demandLevel: level, stockedOut: false },
     steps: [
       step("s1", `把这条归堆：${unknown ? "编码未命中——不猜、不借用相近编码" : isBlockedStatus(status) ? "停购类——不下单，先反问" : "警示类——先确认物料还活着，确认活着才下且量放保守"}`, "小采：拦截清单"),
-      step("s2", `发给提出人，原话照抄：「${question}」`, "微信/邮件，要文字回复"),
+      gate("s2", `发给提出人，原话照抄：「${question}」`, "微信/邮件，要文字回复"),
       step("s3", "答复回来记进卡片：下 / 不下 / 换编码 XXX。能下的转成下单卡，不能下的关闭并更新物料表状态", "看板 + 物料表"),
     ],
     doneRule: "清单已发出（有发送记录）**且**这一行有一个书面答复（下 / 不下 / 换编码 XXX）。只发出没回话 = 未完成。",
@@ -525,11 +628,22 @@ function fromAddon(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
       materialCode: code, materialName: name, supplier: m?.supplier, qty, needDate,
       // 加单天然时间紧：最晚动作日按需求日往前半天算，不留过夜
       dueDate: ctx.bizDate,
+      primaryAction: hasAuth
+        ? action("T2_addon", "po_created", "已在 U8 开单 →", "u8", [
+            ev("poNo", "U8 订单号", "text", true),
+            ev("audited", "已点「审核」（保存 ≠ 生效）", "checkbox", true),
+          ])
+        : action("T2_addon", "addon_auth", "要到书面授权 →", "message", [
+            ev("authText", "授权原话（谁、在哪说的）", "text", true),
+            ev("authAt", "拿到时间", "date", false),
+          ]),
+      facts: { demandLevel: demandLevelOf(m, needDate, ctx.bizDate), stockedOut: false, hasAuth },
+      isUrgent: urgent,
       steps: [
-        step("s1", hasAuth
+        gate("s1", hasAuth
           ? `授权已齐（${authorized} / 凭据：${evidence}），凭据截图挂在这张卡上`
           : `回一句：「${requester}，这个加单麻烦你在群里发条文字，我照着下。」**拿到文字前不下单**`, "微信，要文字"),
-        step("s2", "照常规单算一遍账：可用量、有效在途、净缺口——急单最容易重复下，这一步一次都不能跳", "小采：净缺口算式"),
+        gate("s2", "照常规单算一遍账：可用量、有效在途、净缺口——急单最容易重复下，这一步一次都不能跳", "小采：净缺口算式"),
         step("s3", "优先原供应商原价格加单；赶不上再谈备选或加急（加价先请示领导）", "电话供应商"),
         step("s4", `**新开一张 PO，不改已审核的原订单**；备注写「加单，来源：${needDate} ${requester}微信；对应原订单 XXX」`, U8("供应链→采购管理→采购订单→增加")),
         step("s5", "当天审核 + 发出 + 要回签；跟单表标「急」", U8("采购订单→审核")),
@@ -573,6 +687,7 @@ function fromTracking(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
     const due = normalizeDate(pickColumn(r, [...COLS.promiseDate]));
     const signed = normalizeDate(pickColumn(r, [...COLS.signedBack]));
     const tracking = pickColumn(r, ["物流单号", "运单号", "快递单号"]);
+    const arriveDate = normalizeDate(pickColumn(r, [...COLS.arriveDate]));
     const level = demandLevelOf(m, due, ctx.bizDate);
     const amount = m?.price && qty ? m.price * qty : undefined;
     const coverage = m?.dailyUsage ? (ctx.avail.get(code) ?? 0) / m.dailyUsage : undefined;
@@ -585,8 +700,15 @@ function fromTracking(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
         kind: "T7_not_stocked", key: `${poNo}#${code}`,
         title: `催仓库把「${name}」${poNo} 的入库单录了并审核`,
         ...base, dueDate: ctx.bizDate,
+        primaryAction: action("T7_not_stocked", "instock_confirmed", "催到入库单 →", "call", [
+          ev("stockedOk", "U8 累计入库增量 = 本次实到量", "checkbox", true),
+          ev("whoPromised", "仓库谁答应几点录", "text", false),
+        ]),
+        facts: { demandLevel: level, stockedOut: false },
+        coverageDays: coverage,
+        arriveDate: arriveDate ?? due,
         steps: [
-          step("s1", "先分清卡在哪，四选一：货没到 / 到了没录到货单 / 录了没审核 / 卡在质检——别笼统说「没入库」", "问仓库对接人"),
+          gate("s1", "先分清卡在哪，四选一：货没到 / 到了没录到货单 / 录了没审核 / 卡在质检——别笼统说「没入库」", "问仓库对接人"),
           step("s2", "把送货单照片和订单号一起发过去，让对方不用找", "微信发仓库群"),
           step("s3", "卡质检的催质检出结论；不合格的立刻开一张差异卡", "找质检"),
           step("s4", "入库单审核后核对累计入库增量 = 本次实到量", U8("采购管理→采购订单执行情况统计表→累计入库列")),
@@ -605,10 +727,16 @@ function fromTracking(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
         kind: "T8_overdue", key: `${poNo}#${code}`,
         title: `催「${name}」${poNo} 的新交期（已逾期 ${lateDays} 天）`,
         ...base, dueDate: due,
+        primaryAction: action("T8_overdue", "new_eta", "拿到新交期 →", "call", [
+          ev("newPromiseDate", "供应商给的新交期", "date", true),
+          ev("toldProduction", "已书面告知生产（有发送记录）", "checkbox", true),
+        ]),
+        facts: { demandLevel: level, stockedOut: false },
+        coverageDays: coverage,
         steps: [
-          step("s1", "打电话问三样，缺一样等于没打：**为什么晚 / 新交期哪天 / 现在货到哪一步了**", `电话 ${supplier ?? "供应商"}`),
+          gate("s1", "打电话问三样，缺一样等于没打：**为什么晚 / 新交期哪天 / 现在货到哪一步了**", `电话 ${supplier ?? "供应商"}`),
           step("s2", `当场判断新交期还赶不赶得上；赶不上立刻转「来不及」卡找替代方案`, "小采：交期倒推"),
-          step("s3", "**当天**通知生产/计划——延误影响别人排产，瞒着只会把小事拖成事故", "微信/邮件，留发送记录"),
+          gate("s3", "**当天**通知生产/计划——延误影响别人排产，瞒着只会把小事拖成事故", "微信/邮件，留发送记录"),
           step("s4", `跟进记录写「${ctx.bizDate} 电话 XXX：原话 …… 新交期 X/X」，新交期回填跟单表承诺交期列`, "看板记一笔 + 跟单表"),
         ],
         doneRule: "有新交期（已写进跟单表）**且**生产已被书面告知（有发送记录）。只打了电话没通知生产 = 未完成。",
@@ -625,9 +753,15 @@ function fromTracking(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
         kind: "T4_unconfirmed", key: `${poNo}#${code}`,
         title: `要「${name}」${poNo} 的书面回签（数量 + 每批到货日）`,
         ...base, dueDate: ctx.bizDate,
+        primaryAction: action("T4_unconfirmed", "signback", "回签到手 →", "message", [
+          ev("signbackDate", "回签上的到货日", "date", true),
+          ev("hasFile", "回签件已存进这张卡（图片/PDF/文字确认）", "checkbox", true),
+        ]),
+        facts: { demandLevel: level, stockedOut: false },
+        coverageDays: coverage,
         steps: [
           step("s1", "先微信问一句「收到了吗」——只确认收到，不聊别的", `微信 ${supplier ?? "供应商"}`),
-          step("s2", "要回签件，四项缺一不可：数量 / 单价 / 分批计划 / 每批到货日", "微信/邮件要图片或 PDF"),
+          gate("s2", "要回签件，四项缺一不可：数量 / 单价 / 分批计划 / 每批到货日", "微信/邮件要图片或 PDF"),
           step("s3", `回签交期与 PO 上的 ${due ?? "计划到货日"} 不一致 → 不是"知道了"，是回去重新倒推：新交期还赶得上需求日吗？赶不上立刻转「来不及」卡`, "小采：交期倒推"),
           step("s4", "回签件存进这张卡；跟单表「承诺交期」列以回签为准回填", "看板附件 + 跟单表"),
         ],
@@ -647,9 +781,15 @@ function fromTracking(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
         ? `盯「${name}」${poNo} 的物流节点（承诺 ${due ?? "—"} 到）`
         : `向 ${supplier ?? "供应商"} 要「${name}」${poNo} 的运单号`,
       ...base, dueDate: due ? fmt(addDays(parseDate(due), -1)) : undefined,
+      primaryAction: action("T5_transit", "shipping_info", "问到发运信息 →", "call", [
+        ev("trackingNo", "物流公司 + 运单号", "text", true),
+        ev("etaDate", "预计到达日", "date", true),
+      ]),
+      facts: { demandLevel: level, stockedOut: false },
+      coverageDays: coverage,
       steps: [
         step("s1", `三色判定：距承诺交期 ${left} 个工作日${left <= 3 ? "，已进临期，今天就要问" : "，还有余量，每周确认一次即可"}`, "小采：订单跟踪"),
-        step("s2", "要三样才算「已发货」：**物流公司 + 运单号 + 预计到达日**，缺一样就不算", `电话/微信 ${supplier ?? "供应商"}`),
+        gate("s2", "要三样才算「已发货」：**物流公司 + 运单号 + 预计到达日**，缺一样就不算", `电话/微信 ${supplier ?? "供应商"}`),
         step("s3", `运单号进跟单表${tracking ? `（现在是 ${tracking}）` : "（现在还没有）"}，看物流节点；停滞 ≥ 2 天供应商 + 物流两头催`, "跟单表"),
         step("s4", "预计延误就立刻改到货预告并通知仓库和生产——别等货真的没到才说", "微信仓库群 + 生产"),
       ],
@@ -667,12 +807,17 @@ function fromTracking(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
     out.push(build({
       kind: "T6_notice", key: notice.targetDate,
       title: `发明日到货预告给仓库（${notice.lines.length} 单${urgent ? `，其中 ${urgent} 单急料` : ""}）`,
-      dueDate: ctx.bizDate,
+      dueDate: ctx.bizDate, promiseDate: notice.targetDate,
+      primaryAction: action("T6_notice", "notice_sent", "预告已发并有回执 →", "message", [
+        ev("receiptFrom", "仓库谁回的「收到」", "text", true),
+        ev("sentAt", "发出时间", "text", false),
+      ]),
+      facts: { demandLevel: urgent ? "daily" : "week", stockedOut: false },
       steps: [
         step("s1", "六列表已生成，核一眼数量和物料对不对", "小采：到货预告"),
         step("s2", "状态还是「未发货」的行，今天先找供应商要运单号；要不到的在表里标「待确认」", "电话供应商"),
         step("s3", "需检验的料同时通知质检——别等货到了才想起报检", "微信质检"),
-        step("s4", "发仓库群 **@到具体的人**，不发「各位」", "微信仓库群"),
+        gate("s4", "发仓库群 **@到具体的人**，不发「各位」", "微信仓库群"),
       ],
       doneRule: "已发送**且**仓库有人回复确认（回「收到」即可）。没人回 = 没发出。",
       escalation: `17:00 仓库没人回 → 打电话给仓库对接人：「X 哥，明天有 ${notice.lines.length} 单到${urgent ? "，其中有急料" : ""}，麻烦到了先点数当天录单。表我发群里了，你看一下。」`,
@@ -711,9 +856,15 @@ function fromArrivals(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
         kind: "T9_discrepancy", key: `${poNo}#${code}`,
         title: `定性「${name}」${poNo} 的到货差异（${kindWord}）`,
         materialCode: code || undefined, materialName: name, supplier, poNo, qty: received, dueDate: ctx.bizDate,
+        primaryAction: action("T9_discrepancy", "diff_filed", "差异已定性 →", "record", [
+          ev("verdict", "差异去哪儿了", "select", true, ["供应商补货", "退回", "关闭订单行", "让步接收"]),
+          ev("notifiedBoth", "供应商与仓库两边都有书面记录", "checkbox", true),
+        ]),
+        facts: { demandLevel: level, stockedOut: false, diffRatio: ratio },
+        arriveDate: normalizeDate(pickColumn(r, [...COLS.arriveDate])),
         steps: [
           step("s1", `归类：${kindWord}。数量差 ${diff ?? 0}（订单 ${ordered ?? "—"} / 实到 ${received ?? "—"}，差异比例 ${(ratio * 100).toFixed(1)}%）`, "小采：差异分类"),
-          step("s2", "**当天**拍照留证 + 书面通知供应商（微信文字也行，但要有时间戳）", `微信 ${supplier ?? "供应商"}`),
+          gate("s2", "**当天**拍照留证 + 书面通知供应商（微信文字也行，但要有时间戳）", `微信 ${supplier ?? "供应商"}`),
           step("s3", diff !== undefined && diff < 0
             ? "欠交：要一个补货日期，订单行保持开放；供应商明确不补才手工关闭该行"
             : diff !== undefined && diff > 0
@@ -742,8 +893,14 @@ function fromArrivals(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
         kind: "T7_not_stocked", key: `${poNo}#${code}`,
         title: `催「${name}」${poNo} 的入库单（到货 ${received}，累计入库才 ${stocked}）`,
         materialCode: code || undefined, materialName: name, supplier, poNo, qty: received - stocked, dueDate: ctx.bizDate,
+        primaryAction: action("T7_not_stocked", "instock_confirmed", "催到入库单 →", "call", [
+          ev("stockedOk", "U8 累计入库增量 = 本次实到量", "checkbox", true),
+          ev("whoPromised", "仓库谁答应几点录", "text", false),
+        ]),
+        facts: { demandLevel: level, stockedOut: false },
+        arriveDate: normalizeDate(pickColumn(r, [...COLS.arriveDate])),
         steps: [
-          step("s1", "四选一分清卡在哪：货没到 / 到了没录到货单 / 录了没审核 / 卡在质检", "问仓库对接人"),
+          gate("s1", "四选一分清卡在哪：货没到 / 到了没录到货单 / 录了没审核 / 卡在质检", "问仓库对接人"),
           step("s2", "把送货单照片和订单号一起发过去，让对方不用找", "微信仓库群"),
           step("s3", `核对累计入库增量：现在差 ${received - stocked}`, U8("采购管理→采购订单执行情况统计表→累计入库列")),
         ],
@@ -753,6 +910,101 @@ function fromArrivals(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
         sourceRow: r,
       }, ctx));
     }
+  }
+  return out;
+}
+
+/* ── T13：催付款 / 催开票 ──
+   只在**节点 ≤ 明天**时才造卡（types.ts T13 的口径）。付款和开票是三单匹配的第二条腿：
+   钱和票卡住，下一批货就别想催了；但离得远的节点每天摆在她面前只会变成噪音。 */
+function fromPayments(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
+  const out: BoardTask[] = [];
+  const limit = fmt(addDays(parseDate(ctx.bizDate), 1));
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const pay = normalizeDate(pickColumn(r, [...COLS.payDueDate]));
+    const inv = normalizeDate(pickColumn(r, [...COLS.invoiceDate]));
+    const node = [pay, inv].filter(Boolean).sort()[0];
+    if (!node || node > limit) continue;
+    const poNo = pickColumn(r, [...COLS.poNo]) || "（订单号未填）";
+    const code = pickColumn(r, [...COLS.code]);
+    const key = `${poNo}#${code}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const m = ctx.mats.get(code);
+    const name = m?.name || pickColumn(r, [...COLS.name]) || code || poNo;
+    const supplier = pickColumn(r, [...COLS.supplier]) || m?.supplier;
+    const which = pay && pay <= limit ? "付款" : "开票";
+    const hasInvoice = !!pickColumn(r, [...COLS.invoiceNo]);
+    out.push(build({
+      kind: "T13_payment", key,
+      title: `催 ${poNo}（${name}）的${which}，节点 ${node}`,
+      materialCode: code || undefined, materialName: name, supplier, poNo, dueDate: node,
+      primaryAction: action("T13_payment", "payment_pushed", `已催${which} →`, "message", [
+        ev("pushedTo", "催了谁（财务 / 供应商 + 姓名）", "text", true),
+        ev("promisedAt", "对方答应什么时候办", "text", false),
+      ]),
+      facts: { demandLevel: "week", stockedOut: false },
+      steps: [
+        gate("s1", `三单先对齐：订单数量 / 累计入库 / 发票${hasInvoice ? "" : "——现在发票号还是空的，票没到就别催财务付款"}，三样对不上先别推进`, "小采：对账口径"),
+        step("s2", which === "付款"
+          ? "对得上就把付款申请交给财务，写清订单号、金额口径（含税还是不含税）、到期日"
+          : "票没来先找供应商要票：把订单号、数量、含税口径写清楚，别让对方按自己的口径开",
+          `微信/邮件 ${which === "付款" ? "财务" : supplier ?? "供应商"}`),
+        step("s3", "推完记一笔：找了谁、对方答应哪天办。到期当天没动静，直接找对方主管", "看板记一笔"),
+      ],
+      doneRule: `${which}这一步有一个明确的下一手（财务已收单 / 供应商已答应开票日期），且这张卡上记了对方是谁、答应哪天。只在群里喊一声没人应 = 没催。`,
+      escalation: `节点当天还没结果 → 找对方主管：「X 姐，${poNo} 的${which}今天到期，我这边单据都齐了，麻烦帮我看一下卡在哪一步。」把话说成"我来配合"，不是"你怎么还没办"。`,
+      score: { workdaysLeft: workdaysBetween(ctx.bizDate, node), demandLevel: "week", blockedBy: "finance", ageDays: 0, quickWin: true },
+      sourceRow: r,
+    }, ctx));
+  }
+  return out;
+}
+
+/* ── T14：判断层与事实层冲突 ──
+   自动来源：生产表写的名称和物料档案对不上（编码对得上、名字对不上 = 有人填错了，再往下算都是错的）。
+   手动来源：卡片上点 [用这个] —— 走下面导出的 conflictCard()。**小采永不替她改 U8，也不替她改生产表。** */
+export function conflictCard(input: {
+  materialCode: string; materialName?: string; factValue: string; myValue: string; field: string; where: string;
+}, ctx: { bizDate: string; now?: number }): BoardTask {
+  const c: Ctx = { bizDate: ctx.bizDate, now: ctx.now ?? Date.now(), mats: new Map(), matCodes: [], avail: new Map(), transit: new Map(), warn: () => {} };
+  return build({
+    kind: "T14_conflict", key: `${input.materialCode}#${input.field}`,
+    title: `找${input.where}把「${input.materialName ?? input.materialCode}」的${input.field}改一致（系统 ${input.factValue} / 你核定 ${input.myValue}）`,
+    materialCode: input.materialCode, materialName: input.materialName, dueDate: ctx.bizDate,
+    primaryAction: action("T14_conflict", "source_fixed", "数据源已改 →", "record", [
+      ev("fixedWhere", "改在哪儿", "select", true, ["U8 存货档案", "生产表", "加单表", "对方说不用改"]),
+      ev("fixedNote", "改成什么 / 谁改的", "text", false),
+    ]),
+    facts: { demandLevel: "refill", stockedOut: false },
+    steps: [
+      gate("s1", `先确认哪个是对的：系统里是「${input.factValue}」，你核定的是「${input.myValue}」。拿不准就问${input.where}，别自己拍`, "问人，不猜"),
+      step("s2", `请${input.where}在数据源上改——小采只记你的判断，不替你改 U8，也不替你改生产表`, "找数据源的主人"),
+      step("s3", "改完重新导一次表，回来看这张卡上的两个值合上了没有", "小采：重新导入"),
+    ],
+    doneRule: `数据源已改（重新导入后系统值 = 你核定的值），或有一句书面结论说明为什么不改。两个值一直并排摆着 = 没完成。`,
+    escalation: `两天没人改 → 抄送双方领导说清后果：「${input.field}对不上，按现在的数算出来的缺口是错的，下单可能下错料。麻烦定个人改一下。」`,
+    score: { workdaysLeft: 3, demandLevel: "refill", blockedBy: "production", ageDays: 0, quickWin: true },
+    sourceRow: { field: input.field, factValue: input.factValue, myValue: input.myValue },
+  }, c);
+}
+
+/** 自动扫出来的冲突：生产表的物料名称与物料档案对不上 */
+function conflictCards(rows: Record<string, string>[], ctx: Ctx): BoardTask[] {
+  const out: BoardTask[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const code = pickColumn(r, [...COLS.code]);
+    if (!code || seen.has(code)) continue;
+    const m = ctx.mats.get(code);
+    const name = pickColumn(r, [...COLS.name]);
+    if (!m || !name || name === m.name) continue;
+    seen.add(code);
+    out.push(conflictCard({
+      materialCode: code, materialName: m.name, field: "物料名称",
+      factValue: m.name, myValue: name, where: "生产计划",
+    }, { bizDate: ctx.bizDate, now: ctx.now }));
   }
   return out;
 }
@@ -774,8 +1026,14 @@ function dailyCheck(ctx: Ctx): BoardTask[] {
       kind: "T10_daily_check", key: m.code,
       title: red ? `处理「${m.name}」水位告警（只够 ${coverage!.toFixed(1)} 天，< 3 天红线）` : `录「${m.name}」今日水位（${coverage === undefined ? "缺日均用量" : `${coverage.toFixed(1)} 天`}）`,
       materialCode: m.code, materialName: m.name, supplier: m.supplier, dueDate: ctx.bizDate,
+      primaryAction: action("T10_daily_check", "water_logged", "录今日水位 →", "record", [
+        ev("coverage", "今天的覆盖天数", "text", true),
+        ev("actionTaken", "< 3 天时做了什么（调拨单号 / 催货记录 / 通知谁）", "text", false),
+      ]),
+      facts: { demandLevel: "daily", stockedOut: coverage !== undefined && coverage <= 0 },
+      coverageDays: coverage,
       steps: [
-        step("s1", `算覆盖天数：${covText}`, "小采：水位算式"),
+        gate("s1", `算覆盖天数：${covText}`, "小采：水位算式"),
         step("s2", "< 3 天 → 先查他仓可调量，能调先调（调拨比下单快）", U8("库存管理→现存量查询（按仓库）")),
         step("s3", "调不到 → 联系供应商问最快到货日，同时通知生产「X 日可能断」", "电话供应商 + 微信生产"),
         step("s4", "把今天的水位数字报一次给生产/领导——这既是防断料，也是让你的工作被看见", "微信"),

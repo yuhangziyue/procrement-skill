@@ -18,7 +18,7 @@ import { NavRail, type ViewId } from "./ui/NavRail";
 import { ChatDock } from "./ui/ChatDock";
 import { KnowledgePanel } from "./ui/KnowledgePanel";
 import { isDesktop } from "./data/bridge";
-import { loadBoard, rebuildBoard, setCheck, setTaskStatus, toggleStep, closeDay, type BoardSnapshot } from "./board/service";
+import { loadBoard, rebuildBoard, setCheck, toggleStep, closeDay, editTask, completeTask, addTaskEvent, type BoardSnapshot } from "./board/service";
 import type { BoardTask } from "./board/types";
 /* 集成开关：三个视图由工兵并行交付，到位一个打开一个（老架集成点，别在别处 import） */
 import { BoardView } from "./ui/BoardView";
@@ -246,8 +246,7 @@ export function App() {
       case "board":
         return (
           <BoardView
-            tasks={board?.ordered ?? []}
-            top3={board?.top3 ?? []}
+            byBand={board?.byBand ?? { urgent: [], follow: [], notice: [] }}
             groups={board?.groups ?? []}
             day={board?.day ?? boardEmpty}
             bizDate={board?.bizDate ?? new Date().toISOString().slice(0, 10)}
@@ -255,12 +254,15 @@ export function App() {
             warnings={board?.warnings}
             desktopOnly={!isDesktop()}
             onToggleStep={(id, step, done) => void toggleStep(id, step, done, board?.tasks ?? []).then(refreshBoard)}
-            onStatus={(id, st, note) => void setTaskStatus(id, st, note).then(refreshBoard)}
+            onComplete={(id, evidence) => void completeTask(id, evidence).then(refreshBoard)}
+            onEdit={(id, patch) => void editTask(id, patch, board?.tasks ?? []).then(refreshBoard)}
+            onAddEvent={(id, ev) => void addTaskEvent(id, ev as any).then(refreshBoard)}
             onCheck={(item, checked) => void setCheck(board?.bizDate ?? "", item, checked).then(refreshBoard)}
             onCloseDay={() => void closeDay(board?.bizDate ?? "").then(refreshBoard)}
             onRefresh={() => void rebuildBoardNow()}
             onAskAgent={askAboutTask}
             onImport={() => setPanel("materials")}
+            onOpenTutorial={() => setView("tutorial")}
           />
         );
       case "knowledge":

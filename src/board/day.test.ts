@@ -1,13 +1,19 @@
 // 收工判定的回归测试。判据只有采姐那一句：**允许「未闭环」，不允许「没交代」。**
 import { describe, expect, it } from "vitest";
-import { evaluateDay, handoverText } from "./day";
+import { evaluateDay, evidenceDone, handoverText } from "./day";
 import type { BoardTask, TaskKind } from "./types";
 
 const BIZ = "2026-09-03";
 let seq = 0;
 function card(kind: TaskKind, p: Partial<BoardTask> = {}): BoardTask {
   return {
-    id: p.id ?? `${kind}|${++seq}|${BIZ}`, kind, stage: "order", status: p.status ?? "todo",
+    id: p.id ?? `${kind}|${++seq}|${BIZ}`, kind, stage: "to_order", status: p.status ?? "todo",
+    band: p.band ?? "follow", bandRule: p.bandRule ?? "F6", bandWhy: p.bandWhy ?? "今天推进一步",
+    primaryAction: p.primaryAction ?? {
+      id: "done_it", label: "干完了 →", actionKind: "record",
+      evidence: [{ key: "proof", label: "凭据", type: "text", required: true }],
+    },
+    editable: p.editable ?? {}, events: p.events ?? [], doneEvidence: p.doneEvidence,
     title: p.title ?? `处理 ${kind}`, materialCode: p.materialCode, materialName: p.materialName,
     supplier: p.supplier, poNo: p.poNo, qty: p.qty, needDate: p.needDate, dueDate: p.dueDate,
     score: p.score ?? 50, reasons: [], steps: [], doneSteps: p.doneSteps ?? [],
@@ -68,16 +74,20 @@ describe("允许未闭环，不允许没交代", () => {
     expect(item(dropped, "shortage_cleared").detail).toContain("没有要下的单");
   });
 
-  it("未回签的单：催过一轮（勾过步骤）就算数——对方不回不是她的错", () => {
-    const chased = evaluateDay([card("T4_unconfirmed", { doneSteps: ["s1"] })], {}, BIZ);
+  it("未回签的单：催过一轮（记了一笔）就算数——对方不回不是她的错", () => {
+    const chased = evaluateDay([card("T4_unconfirmed", {
+      events: [{ id: "e1", taskId: "x", at: BIZ, channel: "微信", content: "催了一轮，对方说明早给回签" }],
+    })], {}, BIZ);
     const idle = evaluateDay([card("T4_unconfirmed")], {}, BIZ);
     expect(item(chased, "confirm_chased").satisfied).toBe(true);
     expect(item(idle, "confirm_chased").satisfied).toBe(false);
     expect(item(idle, "confirm_chased").detail).toContain("48 小时");
   });
 
-  it("逾期件：光勾步骤不算，必须闭环或写清已通知生产", () => {
-    const acted = evaluateDay([card("T8_overdue", { doneSteps: ["s1"] })], {}, BIZ);
+  it("逾期件：光记一笔不算，必须闭环或写清已通知生产", () => {
+    const acted = evaluateDay([card("T8_overdue", {
+      events: [{ id: "e1", taskId: "x", at: BIZ, channel: "电话", content: "打过了" }],
+    })], {}, BIZ);
     expect(item(acted, "overdue_escalated").satisfied).toBe(false);
     expect(item(acted, "overdue_escalated").detail).toContain("只打电话没通知生产");
   });
@@ -169,5 +179,56 @@ describe("收工三句话：做了什么 / 卡在哪 / 明天要什么", () => {
 
   it("evaluateDay 直接把三句话带出来，界面不用再拼", () => {
     expect(evaluateDay(tasks, {}, BIZ).handoverText).toBe(handoverText(tasks, BIZ));
+  });
+});
+
+describe("完成判定改为程序判定：凭据填齐才算干完（v2）", () => {
+  const evCard = (p: Partial<BoardTask> = {}) => card("T1_shortage", {
+    primaryAction: {
+      id: "po_created", label: "已在 U8 开单 →", actionKind: "u8",
+      evidence: [
+        { key: "poNo", label: "U8 订单号", type: "text", required: true },
+        { key: "audited", label: "已点审核", type: "checkbox", required: true },
+      ],
+    },
+    ...p,
+  });
+
+  it("必填凭据全填齐 → 算干完，不用她再点一次「干完了」", () => {
+    expect(evidenceDone(evCard({ doneEvidence: { poNo: "PO26-0901", audited: "1" } }))).toBe(true);
+  });
+
+  it("只填了一格 → 不算干完（保存 ≠ 生效，这一格就是那句话的落点）", () => {
+    expect(evidenceDone(evCard({ doneEvidence: { poNo: "PO26-0901" } }))).toBe(false);
+  });
+
+  it("空白字符串不算填", () => {
+    expect(evidenceDone(evCard({ doneEvidence: { poNo: "  ", audited: "1" } }))).toBe(false);
+  });
+
+  it("选填那格空着不影响完成", () => {
+    const t = card("T7_not_stocked", {
+      primaryAction: {
+        id: "instock", label: "催到入库单 →", actionKind: "call",
+        evidence: [
+          { key: "stockedOk", label: "累计入库增量 = 实到量", type: "checkbox", required: true },
+          { key: "whoPromised", label: "仓库谁答应几点录", type: "text", required: false },
+        ],
+      },
+      doneEvidence: { stockedOk: "1" },
+    });
+    expect(evidenceDone(t)).toBe(true);
+  });
+
+  it("勾了一堆步骤但凭据没填 → 仍然不算干完（doneSteps 不再参与判定）", () => {
+    const t = evCard({ doneSteps: ["s1", "s2", "s3"] });
+    expect(evidenceDone(t)).toBe(false);
+    expect(item(evaluateDay([t], {}, BIZ), "shortage_cleared").satisfied).toBe(false);
+  });
+
+  it("凭据填齐的下单卡进收工清单的「已下单」计数", () => {
+    const r = evaluateDay([evCard({ doneEvidence: { poNo: "PO26-0901", audited: "1" } })], {}, BIZ);
+    expect(item(r, "shortage_cleared").satisfied).toBe(true);
+    expect(item(r, "shortage_cleared").detail).toContain("1 张已下单");
   });
 });

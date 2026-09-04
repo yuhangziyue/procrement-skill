@@ -143,3 +143,16 @@ describe("文档评价字段", () => {
     F.deleteDoc("d9"); F.deleteDoc("d10");
   });
 });
+
+describe("空值边界", () => {
+  it("SQLite 的 null 在边界上统一转成 undefined——否则下游 `!== undefined` 判断会对 null 判真", () => {
+    F.upsertTasks([{ id: "n1", kind: "T10_daily_check", stage: "demand", band: "notice", status: "todo",
+      title: "缺日均用量的巡检卡", score: 10, bizDate: "2026-09-04", createdAt: 1, updatedAt: 1 }]);
+    const t = F.listTasks({ bizDate: "2026-09-04" }).find((x) => x.id === "n1");
+    expect(t.coverageDays).toBeUndefined();
+    expect(t.supplier).toBeUndefined();
+    // 这一行是回归的重点：null < 3 会判真，undefined < 3 不会
+    expect(t.coverageDays !== undefined && t.coverageDays < 3).toBe(false);
+    F.deleteTasks(["n1"]);
+  });
+});
