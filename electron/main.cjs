@@ -23,7 +23,7 @@ function createWindow() {
     title: "小采 · 采购工作台",
     titleBarStyle: "hiddenInset",
     // 红绿灯按钮默认压在页面左上角（品牌区），把它往下挪出安全区；NavRail 顶部同步留白
-    trafficLightPosition: { x: 14, y: 20 },
+    trafficLightPosition: { x: 16, y: 15 },
     backgroundColor: "#f6f7f9",
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), sandbox: false, contextIsolation: true },
   });

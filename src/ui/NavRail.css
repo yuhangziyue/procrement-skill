@@ -4,7 +4,9 @@
   background: var(--ink); color: color-mix(in srgb, var(--card) 62%, var(--ink)); padding: 0 6px var(--sp-2); }
 
 /* 标题栏安全区：不放任何内容，只用来给 macOS 红绿灯按钮腾地方，整块可拖拽窗口 */
-.rail-dragzone { flex: none; height: 30px; -webkit-app-region: drag; }
+/* 标题栏安全区。高度必须盖过红绿灯：按钮在 y=15 起、约 14px 高，加上视觉留白要到 ~40px，
+   给 46px 才不会和下面的品牌区挤在一起（30px 时实测被压住）。改灯位时这里要一起改。 */
+.rail-dragzone { flex: none; height: 46px; -webkit-app-region: drag; }
 
 .rail-brand { flex: none; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0 0 var(--sp-3); -webkit-app-region: drag; }
 .rail-brand-text { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
