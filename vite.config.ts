@@ -1,9 +1,18 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import preact from "@preact/preset-vite";
 
 // base 必须与仓库名一致：Pages 地址 https://yuhangziyue.github.io/procrement-skill/
 // 桌面版从 file:// 加载 dist/index.html，必须用相对 base；网页版仍按仓库名。
 const isElectron = !!process.env.ELECTRON;
+
+/**
+ * 只有桌面版才把 .env.local 里的 Key 烤进产物，让本机装的这份「打开即用」。
+ *
+ * ⚠️ 网页版**永远**拿不到它。理由很硬：本仓库是公开仓，网页版产物会推到 gh-pages 分支，
+ * 一旦烤进去等于把 Key 挂到公网。所以这里用 isElectron 卡死，而不是靠"记得别构建网页版"。
+ * 源码里也不写死 Key —— 它只存在于 gitignore 掉的 .env.local 和本机打出来的 .app 里。
+ */
+const bundledKey = isElectron ? (loadEnv("production", process.cwd(), "VITE_").VITE_ARK_API_KEY ?? "") : "";
 
 export default defineConfig({
   base: isElectron ? "./" : "/procrement-skill/",
@@ -53,6 +62,8 @@ export default defineConfig({
     sourcemap: false,
   },
   define: {
+    // 桌面版内置 Key；网页版恒为空串
+    __BUNDLED_ARK_KEY__: JSON.stringify(bundledKey),
     // pi-ai 部分依赖会探测 process.env，浏览器里给个空对象
     "process.env": {},
   },

@@ -84,11 +84,31 @@ export function explainLlmError(msg: string, s?: LlmSettings): string {
 
 const KEY_STORAGE = "xiaocai.apiKey";
 
+/**
+ * 打包时注入的默认 Key（见 vite.config.ts 的 bundledKey）。
+ * 桌面版有值 → 装上就能聊，不用先去设置页填；网页版恒为空串（公开仓 + 公网产物，绝不能带 Key）。
+ * 源码里不写死任何 Key：它只存在于 gitignore 掉的 .env.local 与本机打出来的 .app 里。
+ */
+declare const __BUNDLED_ARK_KEY__: string;
+export const BUNDLED_KEY: string = typeof __BUNDLED_ARK_KEY__ === "string" ? __BUNDLED_ARK_KEY__ : "";
+
+/** 用户自己填过就用他填的；没填过就用内置的。填了空串 = 显式清空，不再回落到内置。 */
 export function getApiKey(): string {
   try {
-    return localStorage.getItem(KEY_STORAGE) ?? "";
+    const saved = localStorage.getItem(KEY_STORAGE);
+    if (saved !== null) return saved;
+    return BUNDLED_KEY;
   } catch {
-    return "";
+    return BUNDLED_KEY;
+  }
+}
+
+/** 当前用的是不是内置那把——设置页要据此显示「已内置，可覆盖」 */
+export function usingBundledKey(): boolean {
+  try {
+    return localStorage.getItem(KEY_STORAGE) === null && !!BUNDLED_KEY;
+  } catch {
+    return !!BUNDLED_KEY;
   }
 }
 

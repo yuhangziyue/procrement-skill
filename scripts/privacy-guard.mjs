@@ -8,6 +8,11 @@ const banned = [
   ["my-", "materials"], ["mentee-", "mameijuan"], ["caigou-", "order"],
 ].map((parts) => parts.join(""));
 
+// 真实 API Key 绝不能进源码。内置 Key 的正确做法是打包时从 gitignore 掉的 .env.local 注入
+// （见 vite.config.ts 的 bundledKey），源码里出现 ark-xxxx 一律拦下——公开仓 + git 历史撤不干净。
+const ARK_KEY_RE = /\bark-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b|\bsk-[A-Za-z0-9]{20,}\b/;
+
+
 const roots = ["src", "knowledge", "templates", "proxy", "index.html", "README.md"];
 const exts = new Set([".ts", ".tsx", ".js", ".mjs", ".json", ".md", ".csv", ".html", ".css", ".txt", ".toml", ".yml"]);
 const hits = [];
@@ -19,6 +24,8 @@ function walk(p) {
   if (!exts.has(extname(p))) return;
   const text = readFileSync(p, "utf8");
   for (const w of banned) if (text.includes(w)) hits.push(`${p}: 命中「${w}」`);
+  const key = text.match(ARK_KEY_RE);
+  if (key) hits.push(`${p}: 源码里出现 API Key（${key[0].slice(0, 12)}…）—— Key 只能放 .env.local，由 vite 在桌面版打包时注入`);
 }
 roots.forEach(walk);
 

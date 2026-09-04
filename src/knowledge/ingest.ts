@@ -9,6 +9,7 @@
 import Papa from "papaparse";
 import { desktop, isDesktop } from "../data/bridge";
 import { newId } from "../util/id";
+import { appraiseDoc, type DocAppraisal } from "./appraise";
 import { chunk, type Chunk } from "./chunk";
 import { classify, majorityCategory, type CategoryId } from "./classify";
 
@@ -25,6 +26,8 @@ export interface IngestResult {
   charCount: number;
   /** 不阻塞导入、但值得让用户知道的提示（中文） */
   warnings: string[];
+  /** 结构化摘要 + 有用度评价，同一份也序列化进了 documents.appraisal（字段暂缺时静默跳过，见 ingestFile） */
+  appraisal: DocAppraisal;
 }
 
 export interface ExtractResult {
@@ -260,15 +263,24 @@ export async function ingestFile(file: File): Promise<IngestResult> {
   const tags = [...new Set(scored.map((s) => s.category))].filter((c) => c !== "other" && c !== category);
   const docId = newId();
   const now = Date.now();
+  const title = titleOf(file.name, text);
+
+  const appraisal = appraiseDoc({
+    title,
+    chunks: scored.map((s) => ({ heading: s.heading, text: s.text, category: s.category })),
+  });
 
   await desktop().call("kb.upsertDoc", {
     id: docId,
-    title: titleOf(file.name, text),
+    title,
     sourceName: file.name,
     mime: file.type || ext,
     category,
     tags,
-    summary: summarize(chunks),
+    summary: appraisal.summary,
+    // documents 表目前还没有这一列（接线清单里给了老架）；桌面端 upsertDoc 只按已知列写 SQL，
+    // 会静默忽略这个多出来的字段，不影响入库——等老架加了列，这条评价就自动落进去，不用改这边的代码。
+    appraisal: JSON.stringify(appraisal),
     charCount: text.length,
     chunkCount: chunks.length,
     createdAt: now,
@@ -282,10 +294,11 @@ export async function ingestFile(file: File): Promise<IngestResult> {
 
   return {
     docId,
-    title: titleOf(file.name, text),
+    title,
     category,
     chunks: chunks.length,
     charCount: text.length,
     warnings: extracted.warnings,
+    appraisal,
   };
 }

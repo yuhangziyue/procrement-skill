@@ -23,16 +23,21 @@ const gramQuery = (q) => {
 
 // ---------- 知识库 ----------
 export function listDocs() {
-  return handle().prepare("SELECT * FROM documents ORDER BY updatedAt DESC").all()
-    .map((d) => ({ ...d, tags: JSON.parse(d.tags || "[]") }));
+  return handle().prepare("SELECT * FROM documents ORDER BY updatedAt DESC").all().map((d) => ({
+    ...d,
+    tags: JSON.parse(d.tags || "[]"),
+    // 老记录没有评价，前端按可空处理
+    appraisal: (() => { try { return d.appraisal ? JSON.parse(d.appraisal) : null; } catch { return null; } })(),
+  }));
 }
 export function upsertDoc(doc) {
   handle().prepare(`INSERT OR REPLACE INTO documents
-    (id,title,sourceName,mime,category,tags,summary,charCount,chunkCount,createdAt,updatedAt)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+    (id,title,sourceName,mime,category,tags,summary,appraisal,charCount,chunkCount,createdAt,updatedAt)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
     doc.id, doc.title, doc.sourceName ?? null, doc.mime ?? null, doc.category ?? "other",
-    JSON.stringify(doc.tags ?? []), doc.summary ?? null, doc.charCount ?? 0, doc.chunkCount ?? 0,
-    doc.createdAt ?? Date.now(), doc.updatedAt ?? Date.now());
+    JSON.stringify(doc.tags ?? []), doc.summary ?? null,
+    doc.appraisal == null ? null : (typeof doc.appraisal === "string" ? doc.appraisal : JSON.stringify(doc.appraisal)),
+    doc.charCount ?? 0, doc.chunkCount ?? 0, doc.createdAt ?? Date.now(), doc.updatedAt ?? Date.now());
   return doc.id;
 }
 export function deleteDoc(docId) {

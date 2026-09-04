@@ -131,3 +131,15 @@ describe("盲区表（宽表通道）", () => {
     expect(tableGet("blindspots", "b1")).toMatchObject({ status: "learning", occurrences: 3, title: "拿现存量当可用量下单" });
   });
 });
+
+describe("文档评价字段", () => {
+  it("appraisal 可写可读，老记录为空不报错；ensureColumn 幂等", () => {
+    F.upsertDoc({ id: "d9", title: "采购管理制度", category: "policy", tags: [], charCount: 900,
+      createdAt: 1, updatedAt: 1, appraisal: { usefulness: 4, usefulnessWhy: "命中 6 条必备主题", missing: ["验收标准"] } });
+    const got = F.listDocs().find((d) => d.id === "d9");
+    expect(got.appraisal).toMatchObject({ usefulness: 4, missing: ["验收标准"] });
+    F.upsertDoc({ id: "d10", title: "无评价的老文档", category: "other", tags: [], charCount: 10, createdAt: 1, updatedAt: 1 });
+    expect(F.listDocs().find((d) => d.id === "d10").appraisal).toBeNull();
+    F.deleteDoc("d9"); F.deleteDoc("d10");
+  });
+});

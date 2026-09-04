@@ -6,6 +6,7 @@ import {
   needsProxy,
   DEV_LOCKED,
   getApiKey,
+  usingBundledKey,
   getCompanyConfig,
   getLlmSettings,
   setApiKey,
@@ -116,6 +117,12 @@ export function SettingsPanel({ open, onClose, onSaved }: Props) {
           <label>
             API Key
             <input type="password" value={key} onInput={(e) => setKey((e.target as HTMLInputElement).value)} placeholder="火山方舟 API Key" />
+            {usingBundledKey() && (
+              <small class="muted">
+                已内置一把默认 Key，装上就能聊 —— 想换成自己的，直接覆盖这里再保存。
+                （Key 只存在这台机器上：不进仓库、不进网页版、导出备份时也会剔除。）
+              </small>
+            )}
           </label>
           <label>
             Base URL

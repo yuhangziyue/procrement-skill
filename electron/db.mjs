@@ -44,9 +44,12 @@ function migrate() {
   db.exec(`CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY, title TEXT NOT NULL, sourceName TEXT, mime TEXT,
     category TEXT NOT NULL DEFAULT 'other', tags TEXT NOT NULL DEFAULT '[]',
-    summary TEXT, charCount INTEGER NOT NULL DEFAULT 0, chunkCount INTEGER NOT NULL DEFAULT 0,
+    summary TEXT, appraisal TEXT, charCount INTEGER NOT NULL DEFAULT 0, chunkCount INTEGER NOT NULL DEFAULT 0,
     createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_documents_cat ON documents(category)`);
+  // 已经建过表的老库补列：CREATE TABLE IF NOT EXISTS 不会追加新列，覆盖安装时必须显式 ALTER。
+  // 这是"升级不丢数据"的另一半——不丢是底线，能用上新字段才算升级成功。
+  ensureColumn("documents", "appraisal", "TEXT");
   db.exec(`CREATE TABLE IF NOT EXISTS chunks (
     id TEXT PRIMARY KEY, docId TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     seq INTEGER NOT NULL, heading TEXT, category TEXT NOT NULL DEFAULT 'other',
@@ -73,6 +76,12 @@ function migrate() {
   db.exec(`CREATE TABLE IF NOT EXISTS learning_progress (
     itemId TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'todo',
     score INTEGER, note TEXT, startedAt INTEGER, doneAt INTEGER, updatedAt INTEGER NOT NULL)`);
+}
+
+/** 幂等加列：列已存在就跳过。SQLite 没有 ADD COLUMN IF NOT EXISTS，只能先查表结构。 */
+function ensureColumn(table, column, type) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }
 
 // ---------- 老表：Dexie 兼容层的服务端实现 ----------
