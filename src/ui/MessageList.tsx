@@ -4,6 +4,7 @@ import type { FeedbackRow } from "../db/schema";
 import { renderMarkdown } from "../util/markdown";
 import { explainLlmError } from "../db/settings";
 import { FeedbackBar } from "./FeedbackBar";
+import { Icon } from "./icons";
 
 interface Props {
   sessionId: string;
@@ -76,7 +77,7 @@ function groupTurns(all: any[]): Turn[] {
 function ToolCallCard({ b }: { b: any }) {
   return (
     <div class="tool-call">
-      <span class="tool-tag">🔧 {b.name}</span>
+      <span class="tool-tag"><Icon name="external" size={13} tone="muted" /> {b.name}</span>
       <pre>{JSON.stringify(b.arguments, null, 2)}</pre>
     </div>
   );
@@ -172,7 +173,7 @@ export function MessageList({ sessionId, messages, streaming, feedback, onFeedba
             {(hasProcess || thinkingNow) && (
               <details class={`thinking${thinkingNow ? " live" : ""}`}>
                 <summary>
-                  <span class="thinking-icon">🧠</span> {summaryLabel}
+                  <span class="thinking-icon"><Icon name="brain" size={14} /></span> {summaryLabel}
                   {thinkingNow && <span class="cursor">▍</span>}
                   <span class="thinking-hint">点击{"展开 / 收起"}</span>
                 </summary>
@@ -184,7 +185,9 @@ export function MessageList({ sessionId, messages, streaming, feedback, onFeedba
                       return (
                         <div key={s.idx} class={`process-tool${s.m.isError ? " is-error" : ""}`}>
                           <div class="tool-result">
-                            <span class="tool-tag">{s.m.isError ? "❌" : "✅"} {s.m.toolName}</span>
+                            <span class="tool-tag">
+                              <Icon name={s.m.isError ? "alert" : "done"} size={13} tone={s.m.isError ? "danger" : "ok"} /> {s.m.toolName}
+                            </span>
                             <div class="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(textOf(s.m.content)) }} />
                           </div>
                           {!s.m.isError && ADOPTABLE.has(s.m.toolName) && (
@@ -209,7 +212,9 @@ export function MessageList({ sessionId, messages, streaming, feedback, onFeedba
                     {finalBlocks.map((b, i) =>
                       b.type === "text" && b.text ? <div key={i} class="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(b.text) }} /> : null,
                     )}
-                    {final.m.stopReason === "error" && <div class="error">⚠️ {explainLlmError(final.m.errorMessage || "请求失败")}</div>}
+                    {final.m.stopReason === "error" && (
+                      <div class="error"><Icon name="alert" size={14} tone="danger" /> {explainLlmError(final.m.errorMessage || "请求失败")}</div>
+                    )}
                     {finalLive && <span class="cursor">▍</span>}
                   </div>
                   {!finalLive && finalText && (

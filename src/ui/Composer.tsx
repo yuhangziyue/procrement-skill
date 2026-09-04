@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { Icon } from "./icons";
 
 interface Props {
   disabled: boolean;
@@ -31,9 +32,9 @@ export function Composer({ disabled, onSend, onAbort, streaming }: Props) {
         rows={2}
       />
       {streaming ? (
-        <button class="btn btn-stop" onClick={onAbort}>停止</button>
+        <button class="btn btn-stop" onClick={onAbort}><Icon name="stop" size={14} /> 停止</button>
       ) : (
-        <button class="btn btn-primary" onClick={submit} disabled={disabled || !text.trim()}>发送</button>
+        <button class="btn btn-primary" onClick={submit} disabled={disabled || !text.trim()}><Icon name="send" size={14} /> 发送</button>
       )}
     </div>
   );

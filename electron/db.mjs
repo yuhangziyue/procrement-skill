@@ -12,13 +12,15 @@ export const TABLE_SPEC = {
   enhancements: ["origin", "enabled"],
   feedback: ["sessionId", "messageId"],
   settings: [],
+  /** 聊天里识别出的知识盲区。topic/status 要按索引查，其余字段留在 data JSON 里 */
+  blindspots: ["topic", "status", "lastSeenAt"],
 };
 /** settings 的主键是 key 不是 id */
 const PK = { settings: "key" };
 const pk = (t) => PK[t] ?? "id";
 
 /** 索引列类型：数字列用 INTEGER，布尔在 JS 侧转 0/1（IndexedDB 不认布尔索引的坑在 SQLite 里同样要防） */
-const NUM_COLS = new Set(["updatedAt", "createdAt", "enabled"]);
+const NUM_COLS = new Set(["updatedAt", "createdAt", "enabled", "lastSeenAt", "firstSeenAt", "occurrences"]);
 
 let db;
 

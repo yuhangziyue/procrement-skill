@@ -7,16 +7,15 @@ import { findConflicts, saveEnhancement, type EnhancementDraft } from "./db/enha
 import { createAgent, sanitizeHistory } from "./agent/create-agent";
 import { seedBuiltinCards } from "./knowledge/seed";
 import { onEnhancementDraft } from "./tools/save-enhancement";
+import { onCorrectionDraft } from "./tools/blindspot";
 import { newId } from "./util/id";
-import { Sidebar } from "./ui/Sidebar";
-import { MessageList } from "./ui/MessageList";
-import { Composer } from "./ui/Composer";
 import { SettingsPanel } from "./ui/SettingsPanel";
 import { MaterialsPanel } from "./ui/MaterialsPanel";
 import { ExportPanel } from "./ui/ExportPanel";
 import { EnhancementsPanel } from "./ui/EnhancementsPanel";
 import { EnhancementPreview } from "./ui/EnhancementPreview";
 import { NavRail, type ViewId } from "./ui/NavRail";
+import { ChatDock } from "./ui/ChatDock";
 import { KnowledgePanel } from "./ui/KnowledgePanel";
 import { isDesktop } from "./data/bridge";
 import { loadBoard, rebuildBoard, setCheck, setTaskStatus, toggleStep, closeDay, type BoardSnapshot } from "./board/service";
@@ -26,7 +25,7 @@ import { BoardView } from "./ui/BoardView";
 import { TutorialView } from "./ui/TutorialView";
 import { LearningView } from "./ui/LearningView";
 
-type Panel = "settings" | "materials" | "enhancements" | "export" | "knowledge" | null;
+type Panel = "settings" | "materials" | "enhancements" | "export" | null;
 
 export function App() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -39,8 +38,7 @@ export function App() {
   const [view, setView] = useState<ViewId>("board");
   const [board, setBoard] = useState<BoardSnapshot>();
   const [boardBusy, setBoardBusy] = useState(false);
-  const [chatOpen, setChatOpen] = useState(true);
-  const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [hasKey, setHasKey] = useState(!!getApiKey());
   const [proxyMissing, setProxyMissing] = useState(false);
   const [feedback, setFeedback] = useState<Map<string, FeedbackRow>>(new Map());
@@ -114,11 +112,14 @@ export function App() {
       await mountAgent(rows[0].id);
       await refreshProxyCheck();
     })();
-    // 「教它」草稿 → 预览确认
-    return onEnhancementDraft(async (d) => {
+    // 「教它」与「纠错」两条路产出的草稿形状一致，走同一个预览确认（都不自动落库）
+    const showDraft = async (d: EnhancementDraft & { sourceSessionId?: string }) => {
       const existing = await db.enhancements.toArray();
       setDraft({ draft: d, conflicts: findConflicts(d, existing), existing });
-    });
+    };
+    const offA = onEnhancementDraft(showDraft);
+    const offB = onCorrectionDraft(showDraft);
+    return () => { offA(); offB(); };
   }, []);
 
   // ---------- 工作看板 ----------
@@ -135,6 +136,16 @@ export function App() {
   }, []);
 
   useEffect(() => { void refreshBoard(); }, [refreshBoard]);
+
+  // ⌘K / Ctrl+K 召出或收起采姐——浮窗化之后必须有键盘入口，否则比原来的常驻侧栏还难够到
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setChatOpen((v) => !v); }
+      if (e.key === "Escape") setChatOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   /** 卡片上的「问采姐」：把物料 / PO / 卡在哪一步一起带过去，她不用自己组织语言（苏姐 §3） */
   const askAboutTask = (task: BoardTask, question: string) => {
@@ -203,9 +214,17 @@ export function App() {
     if (currentId) await mountAgent(currentId);
   };
 
+  /**
+   * 点「不对 → 教它正确做法」走纠错三问，不再直接叫模型攒卡：
+   * 走 record_correction 才会带上「来源：用户补充 · 日期」的戳，也才有"问不出正确答案就不落卡"的兜底。
+   */
   const teach = (messageId: string, note?: string) => {
-    const hint = note?.trim() ? `我对这条回复的备注：「${note.trim()}」。` : "";
-    void send(`${hint}上面那条回复不对，请按我说的正确做法整理成一张增强卡（调用 save_enhancement），触发词要覆盖这个场景。`);
+    const hint = note?.trim() ? `我先说一句：「${note.trim()}」。` : "";
+    void send(
+      `${hint}上面那条回复不对。请走纠错三问：一次只问一件事，最多三问——①哪一句不对（我可以跳过）` +
+      `②正确的应该是什么 ③下次什么情况按这条办。拿到②之后调 record_correction 落成一张卡；` +
+      `我要是说不清正确答案，就把 correct 留空调用，别自己编。`,
+    );
   };
 
   const summarize = () => void send("请调用 save_summary（kind=manual）给本次会话做小结：事实 / 待办 / 新规矩。");
@@ -244,6 +263,8 @@ export function App() {
             onImport={() => setPanel("materials")}
           />
         );
+      case "knowledge":
+        return <KnowledgePanel onClose={() => setView("board")} />;
       case "tutorial":
         return <TutorialView onAskAgent={(q) => { setChatOpen(true); void send(q); }} />;
       case "learning":
@@ -255,7 +276,7 @@ export function App() {
     <div class="shell">
       <NavRail
         view={view}
-        onChange={(v) => (v === "knowledge" ? setPanel("knowledge") : setView(v))}
+        onChange={setView}
         onSettings={() => setPanel("settings")}
         alert={!hasKey}
       />
@@ -272,36 +293,31 @@ export function App() {
         {renderView()}
       </main>
 
-      {/* 采姐常驻侧栏：苏姐定的——看板是主界面，对话不占主位也不可关闭，只能折起来 */}
-      <aside class={`shell-chat${chatOpen ? "" : " collapsed"}`}>
-        <button class="chat-toggle" onClick={() => setChatOpen(!chatOpen)} title={chatOpen ? "折起采姐" : "展开采姐"}>
-          {chatOpen ? "›" : "‹ 采姐"}
-        </button>
-        {chatOpen && (
-          <>
-            <header class="chat-head">
-              <button class="btn btn-sm" onClick={() => setSessionsOpen(!sessionsOpen)} title="历史会话">🕘</button>
-              <span class="chat-title" title={current?.title}>{current?.title ?? "采姐"}</span>
-              <button class="btn btn-sm" onClick={newSession} title="新会话">＋</button>
-              <button class="btn btn-sm" onClick={summarize} disabled={!hasKey || busy || messages.length < 2} title="把本次会话做成留痕小结">📝</button>
-              <button class="btn btn-sm" onClick={() => setPanel("materials")} title="资料库">📂</button>
-              <button class="btn btn-sm" onClick={() => setPanel("enhancements")} title="增强卡">🧩</button>
-              <button class="btn btn-sm" onClick={() => setPanel("export")} title="导出备份">⇩</button>
-            </header>
-            {sessionsOpen && (
-              <div class="chat-sessions">
-                <Sidebar sessions={sessions} currentId={currentId} onSelect={(id) => { setSessionsOpen(false); void selectSession(id); }} onNew={newSession} onDelete={deleteSession} />
-              </div>
-            )}
-            {currentId && (
-              <MessageList sessionId={currentId} messages={messages} streaming={streaming} feedback={feedback} onFeedbackChange={() => currentId && refreshFeedback(currentId)} onTeach={teach} />
-            )}
-            <Composer disabled={!hasKey || proxyMissing} streaming={busy} onSend={send} onAbort={abort} />
-          </>
-        )}
-      </aside>
+      <ChatDock
+        open={chatOpen}
+        onOpen={() => setChatOpen(true)}
+        onClose={() => setChatOpen(false)}
+        sessions={sessions}
+        currentId={currentId}
+        title={current?.title}
+        messages={messages}
+        streaming={streaming}
+        feedback={feedback}
+        busy={busy}
+        disabled={!hasKey || proxyMissing}
+        hint={!hasKey ? "还没填 API Key——点右下角设置，或去「设置」页粘贴。" : undefined}
+        onSend={send}
+        onAbort={abort}
+        onSelectSession={(id) => void selectSession(id)}
+        onNewSession={() => void newSession()}
+        onDeleteSession={(id) => void deleteSession(id)}
+        onFeedbackChange={() => currentId && void refreshFeedback(currentId)}
+        onTeach={teach}
+        onSummarize={summarize}
+        canSummarize={hasKey && !busy && messages.length >= 2}
+        onOpenPanel={(p) => setPanel(p)}
+      />
 
-      {panel === "knowledge" && <KnowledgePanel onClose={() => setPanel(null)} />}
       <SettingsPanel open={panel === "settings"} onClose={() => setPanel(null)} onSaved={rebuild} />
       <MaterialsPanel open={panel === "materials"} onClose={() => setPanel(null)} onChanged={async () => { await rebuild(); await refreshBoard(); }} />
       <EnhancementsPanel open={panel === "enhancements"} onClose={() => setPanel(null)} onChanged={rebuild} />

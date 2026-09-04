@@ -9,6 +9,7 @@ import {
   type EnhancementDraft,
 } from "../db/enhancements";
 import { EnhancementPreview } from "./EnhancementPreview";
+import { Icon } from "./icons";
 import "./EnhancementsPanel.css";
 
 interface Props {
@@ -19,7 +20,7 @@ interface Props {
 }
 
 const GROUPS: { origin: EnhancementRow["origin"]; label: string; hint: string }[] = [
-  { origin: "taught", label: "我教的", hint: "对话里说「记住…」或点 👎 后教的，确认过才会出现在这里。" },
+  { origin: "taught", label: "我教的", hint: "对话里说「记住…」或反馈点「不对」后教的，确认过才会出现在这里。" },
   { origin: "user", label: "我导入的", hint: "自己写的或导入的卡。" },
   { origin: "builtin", label: "内置", hint: "随小采自带。可以停用，不能删、不能改正文。" },
 ];
@@ -75,7 +76,7 @@ export function EnhancementsPanel({ open, onClose, onChanged }: Props) {
           <button class="btn-link" onClick={onClose}>关闭</button>
         </header>
         <p class="muted">每张卡 = 一个场景的做法。命中触发词时小采按卡执行。黄色 = 触发词和另一张重叠，点选留哪张。</p>
-        {error && <div class="enh-error">⚠️ {error}</div>}
+        {error && <div class="enh-error"><Icon name="alert" size={14} tone="danger" /> {error}</div>}
 
         {GROUPS.map((g) => {
           const list = rows.filter((r) => r.origin === g.origin);

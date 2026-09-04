@@ -1,23 +1,24 @@
-/* 资料库抽屉——只加 .materials-* 前缀类，基础 .drawer / .btn / .muted 来自 styles.css */
-.materials-pending { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; background: var(--bg); }
+/* 资料库抽屉——只加 .materials-* 前缀类，基础 .drawer / .btn / .muted 来自 styles.css，配色一律走令牌 */
+.materials-pending { border: 1px solid var(--line); border-radius: var(--r-2); padding: 10px 12px; margin-top: var(--sp-2); background: var(--bg); }
 .materials-pending-file { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .materials-pending-file strong { word-break: break-all; }
-.materials-detected { margin: 6px 0 0; font-size: 14px; color: #237804; }
-.materials-undetected { margin: 6px 0 0; font-size: 14px; color: #ad4e00; }
-.materials-select { display: block; width: 100%; margin-top: 4px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel); font: inherit; }
-.materials-actions { display: flex; gap: 8px; margin-top: 6px; }
+.materials-detected { margin: 6px 0 0; font-size: var(--fs-3); color: var(--ok); }
+.materials-undetected { margin: 6px 0 0; font-size: var(--fs-3); color: var(--warn); }
+.materials-select { display: block; width: 100%; margin-top: 4px; border: 1px solid var(--line); border-radius: var(--r-1); padding: 8px 10px; background: var(--panel); font: inherit; }
+.materials-actions { display: flex; gap: var(--sp-2); margin-top: 6px; }
 
-.materials-done { margin-top: 10px; border-left: 3px solid var(--brand); padding: 6px 12px; background: var(--brand-soft); border-radius: 0 8px 8px 0; }
+.materials-done { margin-top: var(--sp-2); border-left: 3px solid var(--brand); padding: 6px 12px; background: var(--brand-soft); border-radius: 0 var(--r-1) var(--r-1) 0; }
 .materials-done-title { margin: 0; }
-.materials-diff { margin: 4px 0 0; font-size: 14px; }
+.materials-diff { margin: 4px 0 0; font-size: var(--fs-3); }
 .materials-diff b { color: var(--brand); }
-.materials-notice { margin: 8px 0 0; font-size: 13px; color: #ad4e00; }
-.materials-error { margin: 8px 0 0; font-size: 14px; }
+.materials-notice { margin: 8px 0 0; font-size: var(--fs-2); color: var(--warn); display: flex; align-items: flex-start; gap: 5px; }
+.materials-notice > svg { flex: none; margin-top: 2px; }
+.materials-error { margin: 8px 0 0; font-size: var(--fs-3); }
 
-.materials-group { margin-top: 10px; }
-.materials-group-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.materials-group { margin-top: var(--sp-2); }
+.materials-group-title { font-size: var(--fs-1); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
 .materials-list { list-style: none; margin: 0; padding: 0; }
-.materials-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; background: var(--panel); }
+.materials-item { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-1); margin-bottom: 6px; background: var(--panel); }
 .materials-item-main { flex: 1; min-width: 0; }
 .materials-item-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.materials-item-meta { font-size: 12px; color: var(--muted); }
+.materials-item-meta { font-size: var(--fs-1); color: var(--muted); }

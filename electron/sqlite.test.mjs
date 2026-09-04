@@ -116,3 +116,18 @@ describe("看板与学习计划", () => {
     expect(F.listProgress()[0]).toMatchObject({ itemId: "L1", status: "done", score: 90 });
   });
 });
+
+describe("盲区表（宽表通道）", () => {
+  it("按 topic / status 索引查得到，JSON 字段原样往返", () => {
+    tablePut("blindspots", [
+      { id: "b1", topic: "ordering", status: "open", title: "拿现存量当可用量下单", kind: "wrong_metric",
+        evidence: "库里有 3000 那就下 0 吧", linkedItemIds: ["B1", "B2"], occurrences: 2, firstSeenAt: 1, lastSeenAt: 9 },
+      { id: "b2", topic: "supplier", status: "cleared", title: "口头「好的」当回签", kind: "misconception",
+        evidence: "他说好的就是确认了", linkedItemIds: [], occurrences: 1, firstSeenAt: 2, lastSeenAt: 3 },
+    ]);
+    expect(tableByIndex("blindspots", "status", "open")).toHaveLength(1);
+    expect(tableByIndex("blindspots", "topic", "ordering")[0].linkedItemIds).toEqual(["B1", "B2"]);
+    tableUpdate("blindspots", "b1", { status: "learning", occurrences: 3 });
+    expect(tableGet("blindspots", "b1")).toMatchObject({ status: "learning", occurrences: 3, title: "拿现存量当可用量下单" });
+  });
+});

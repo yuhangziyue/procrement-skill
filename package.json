@@ -74,7 +74,8 @@
         }
       ],
       "category": "public.app-category.productivity",
-      "identity": null
+      "identity": null,
+      "icon": "build/icon.icns"
     },
     "asar": true,
     "afterPack": "scripts/adhoc-sign.cjs"

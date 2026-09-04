@@ -18,6 +18,7 @@ import type { JSX } from "preact";
 import { STAGES, type BoardTask } from "../board/types";
 import { TaskCard, formatBizDate } from "./TaskCard";
 import { DayClose } from "./DayClose";
+import { Icon } from "./icons";
 import "./BoardView.css";
 
 export interface BoardViewProps {
@@ -79,7 +80,7 @@ export function BoardView(props: BoardViewProps): JSX.Element {
   if (desktopOnly) {
     return (
       <div class="board-view board-empty-state">
-        <div class="board-empty-icon">🖥</div>
+        <div class="board-empty-icon"><Icon name="tutorial" size={36} /></div>
         <h3>工作看板是桌面版功能</h3>
         <p class="muted">看板要把当天任务状态存到本机数据库里，网页版没有这个存储。打开桌面版小采就能用；网页版可以先在右侧跟采姐对话。</p>
       </div>
@@ -89,7 +90,7 @@ export function BoardView(props: BoardViewProps): JSX.Element {
   if (loading) {
     return (
       <div class="board-view board-empty-state">
-        <div class="board-empty-icon">⏳</div>
+        <div class="board-empty-icon"><Icon name="clock" size={36} /></div>
         <p class="muted">看板加载中…</p>
       </div>
     );
@@ -112,7 +113,7 @@ export function BoardView(props: BoardViewProps): JSX.Element {
         <DayClose bizDate={bizDate} handoverText={day.handoverText} doneTasks={doneTasks} pendingTasks={pendingTasks} onCloseDay={props.onCloseDay} />
       ) : activeTasks.length === 0 ? (
         <div class="board-empty-state board-empty-inline">
-          <div class="board-empty-icon">🗂</div>
+          <div class="board-empty-icon"><Icon name="folder" size={36} /></div>
           <h3>看板还没有数据</h3>
           <p class="muted">导一张生产表或订单执行报表，今天的卡片就能算出来——只导一张也能出卡。</p>
           <div class="board-empty-actions">

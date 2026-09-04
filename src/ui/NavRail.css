@@ -1,12 +1,28 @@
-.rail { width: 92px; flex: none; display: flex; flex-direction: column; gap: 4px;
-  background: #1f2430; color: #cfd6e4; padding: 10px 6px; }
-.rail-brand { font-size: 15px; font-weight: 700; color: #fff; text-align: center; padding: 6px 0 12px; letter-spacing: 2px; }
-.rail-items { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; }
-.rail-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  background: transparent; border: 0; color: inherit; padding: 9px 2px; border-radius: 8px; cursor: pointer; font: inherit; }
-.rail-item:hover { background: #2b3242; color: #fff; }
-.rail-item.on { background: #3a72f0; color: #fff; }
-.rail-icon { font-size: 17px; line-height: 1; }
+/* 一级导航条。桌面版用 titleBarStyle:hiddenInset，红绿灯会压在左上角——顶部留一条纯拖拽安全区，
+   品牌区放在安全区下方，不与系统按钮打架。深色底用 --ink（品牌砖红的近黑版本），不是纯灰，呼应整体色系。 */
+.rail { width: 92px; flex: none; display: flex; flex-direction: column;
+  background: var(--ink); color: color-mix(in srgb, var(--card) 62%, var(--ink)); padding: 0 6px var(--sp-2); }
+
+/* 标题栏安全区：不放任何内容，只用来给 macOS 红绿灯按钮腾地方，整块可拖拽窗口 */
+.rail-dragzone { flex: none; height: 30px; -webkit-app-region: drag; }
+
+.rail-brand { flex: none; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0 0 var(--sp-3); -webkit-app-region: drag; }
+.rail-brand-text { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
+.rail-brand-name { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 1px; }
+.rail-brand-sub { font-size: 10px; color: color-mix(in srgb, var(--card) 50%, var(--ink)); margin-top: 1px; white-space: nowrap; }
+
+.rail-items { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; padding-top: 2px; }
+.rail-item { position: relative; -webkit-app-region: no-drag; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: transparent; border: 0; color: inherit; padding: 9px 2px; border-radius: var(--r-1); cursor: pointer; font: inherit;
+  transition: background var(--dur-1), color var(--dur-1); }
+.rail-item:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.rail-item:active { background: rgba(255, 255, 255, .12); }
+.rail-item:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.rail-item.on { background: var(--brand); color: #fff; }
 .rail-name { font-size: 11px; }
 .rail-settings { margin-top: auto; }
-.rail .dot { position: absolute; top: 6px; right: 14px; width: 7px; height: 7px; border-radius: 50%; background: #ff5a5a; }
+.rail .dot { position: absolute; top: 6px; right: 14px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); -webkit-app-region: no-drag; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-item { transition: none; }
+}

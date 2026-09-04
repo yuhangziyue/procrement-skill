@@ -11,6 +11,7 @@ import {
   type DiffSummary,
   type MaterialRole,
 } from "../db/materials";
+import { Icon } from "./icons";
 import "./MaterialsPanel.css";
 
 interface Props {
@@ -167,7 +168,7 @@ export function MaterialsPanel({ open, onClose, onChanged }: Props) {
                 </p>
               )}
               {done.previousVersion && !done.summary && <p class="muted">已覆盖为新版本（该类型不做逐行比对）。</p>}
-              <p class="materials-notice">⚠️ {LOCAL_NOTICE}</p>
+              <p class="materials-notice"><Icon name="warning" size={13} tone="warn" /> {LOCAL_NOTICE}</p>
             </div>
           )}
           {error && <p class="error materials-error">{error}</p>}

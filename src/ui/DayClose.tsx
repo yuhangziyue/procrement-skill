@@ -3,6 +3,7 @@
 import { useState } from "preact/hooks";
 import type { BoardTask } from "../board/types";
 import { copyText, formatBizDate } from "./TaskCard";
+import { Icon } from "./icons";
 
 interface DayCloseProps {
   bizDate: string;
@@ -29,7 +30,7 @@ export function DayClose({ bizDate, handoverText, doneTasks, pendingTasks, onClo
   return (
     <div class="day-close">
       <div class="day-close-hero">
-        <div class="day-close-check">✅</div>
+        <div class="day-close-check"><Icon name="done" size={34} tone="ok" /></div>
         <h2>今天清完了 · {doneTasks.length}/{total || doneTasks.length}</h2>
         <p class="muted">{formatBizDate(bizDate)}</p>
       </div>

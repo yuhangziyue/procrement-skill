@@ -65,6 +65,11 @@ export function insertChunks(docId, chunks) {
   } catch (e) { db.exec("ROLLBACK"); throw e; }
   return chunks.length;
 }
+/** 全量切片。知识体系图要按 40 条主题逐条判命中，逐个搜 40 轮太浪费，一次取回在内存里算。 */
+export function listChunks() {
+  return handle().prepare("SELECT id, docId, heading, category, text FROM chunks ORDER BY docId, seq").all();
+}
+
 /** 返回 [{chunkId, docId, title, category, heading, text, score}]，score 越大越相关（SQLite bm25 是负数，取反） */
 export function searchChunks(query, { limit = 6, category } = {}) {
   const m = gramQuery(query);

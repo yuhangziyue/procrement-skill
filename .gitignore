@@ -36,3 +36,6 @@ docs/U8-RESEARCH.md
 
 # 桌面版打包产物
 release/
+
+# Claude Code 的项目级工具配置，不属于产品
+.claude/

@@ -4,6 +4,7 @@ export interface DesktopBridge {
   platform: string;
   call<T = unknown>(name: string, ...args: unknown[]): Promise<T>;
   dbPath(): Promise<string>;
+  dataDir(): Promise<string>;
   revealDb(): Promise<void>;
   saveFile(name: string, data: Uint8Array): Promise<string | null>;
 }

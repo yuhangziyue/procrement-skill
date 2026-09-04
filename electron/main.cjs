@@ -9,11 +9,21 @@ const fs = require("node:fs");
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 let API = {};
 
+// ⚠️ 数据目录必须钉死，不能跟着 app 名字走。
+// Electron 默认把 userData 放在 appData/<app.getName()>，而 getName() 会因为
+// 打包/未打包、productName 改名而变（实测：未打包时是 "Electron"，打包后是 "xiaocai"）。
+// 一旦哪天改了产品名，用户的会话、资料、知识库、看板就会"凭空消失"——其实是换了个目录。
+// 钉成常量后，无论怎么改名、怎么覆盖安装，数据都在原地。这个值一旦发布就永不修改。
+const DATA_DIR_NAME = "xiaocai";
+app.setPath("userData", path.join(app.getPath("appData"), DATA_DIR_NAME));
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1380, height: 900, minWidth: 1040, minHeight: 640,
     title: "小采 · 采购工作台",
     titleBarStyle: "hiddenInset",
+    // 红绿灯按钮默认压在页面左上角（品牌区），把它往下挪出安全区；NavRail 顶部同步留白
+    trafficLightPosition: { x: 14, y: 20 },
     backgroundColor: "#f6f7f9",
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), sandbox: false, contextIsolation: true },
   });
@@ -62,8 +72,28 @@ app.whenReady().then(async () => {
   const dir = app.getPath("userData");
   fs.mkdirSync(dir, { recursive: true });
   const dbFile = path.join(dir, "xiaocai.sqlite");
+
+  // 覆盖安装保险：应用版本变化时，先把旧库整体复制一份再打开。
+  // 建表用的是 CREATE TABLE IF NOT EXISTS（只增不删），正常升级不会丢数据；
+  // 但"正常"是假设，备份是兜底——出事时用户至少能拿回昨天的库。
+  try {
+    const stampFile = path.join(dir, "app-version.json");
+    const prev = fs.existsSync(stampFile) ? JSON.parse(fs.readFileSync(stampFile, "utf8")) : null;
+    if (fs.existsSync(dbFile) && prev?.version !== app.getVersion()) {
+      const bak = path.join(dir, `xiaocai.backup-${prev?.version ?? "unknown"}-${new Date().toISOString().slice(0, 10)}.sqlite`);
+      if (!fs.existsSync(bak)) fs.copyFileSync(dbFile, bak);
+      console.log("[xiaocai] 版本变化，已备份旧库:", bak);
+      // 只留最近 3 份备份，别把用户磁盘吃光
+      const baks = fs.readdirSync(dir).filter((f) => f.startsWith("xiaocai.backup-")).sort();
+      for (const f of baks.slice(0, Math.max(0, baks.length - 3))) fs.rmSync(path.join(dir, f), { force: true });
+    }
+    fs.writeFileSync(stampFile, JSON.stringify({ version: app.getVersion(), at: Date.now() }, null, 2));
+  } catch (e) {
+    console.warn("[xiaocai] 备份旧库失败（不阻塞启动）:", e.message);
+  }
+
   T.openDb(dbFile);
-  console.log("[xiaocai] sqlite:", dbFile);
+  console.log("[xiaocai] sqlite:", dbFile, "| userData:", dir);
 
   /** 白名单：渲染进程只能点名调用这些函数，不能下发任意 SQL */
   API = {
@@ -71,10 +101,14 @@ app.whenReady().then(async () => {
     "table.put": (t, rows) => T.tablePut(t, rows, "put"), "table.add": (t, rows) => T.tablePut(t, rows, "add"),
     "table.update": T.tableUpdate, "table.delete": T.tableDelete, "table.deleteByIndex": T.tableDeleteByIndex,
     "kb.listDocs": F.listDocs, "kb.upsertDoc": F.upsertDoc, "kb.deleteDoc": F.deleteDoc,
-    "kb.insertChunks": F.insertChunks, "kb.search": F.searchChunks,
+    "kb.insertChunks": F.insertChunks, "kb.search": F.searchChunks, "kb.listChunks": F.listChunks,
     "board.list": F.listTasks, "board.upsert": F.upsertTasks, "board.update": F.updateTask,
     "board.delete": F.deleteTasks, "board.getDay": F.getDay, "board.setDay": F.setDay,
     "learn.list": F.listProgress, "learn.set": F.setProgress,
+    // 盲区表复用宽表通道（id + 索引列 + data JSON），逻辑与合并规则都在渲染侧 TS 里，有单测
+    "blindspot.list": () => T.tableAll("blindspots"),
+    "blindspot.set": (row) => T.tablePut("blindspots", Array.isArray(row) ? row : [row], "put"),
+    "blindspot.remove": (id) => T.tableDelete("blindspots", Array.isArray(id) ? id : [id]),
   };
 
   ipcMain.handle("xiaocai:call", (_e, name, args) => {
@@ -83,6 +117,7 @@ app.whenReady().then(async () => {
     return fn(...(args ?? []));
   });
   ipcMain.handle("xiaocai:dbPath", () => dbFile);
+  ipcMain.handle("xiaocai:dataDir", () => dir);
   ipcMain.handle("xiaocai:reveal", () => shell.showItemInFolder(dbFile));
   ipcMain.handle("xiaocai:saveFile", async (_e, { name, data }) => {
     const r = await dialog.showSaveDialog({ defaultPath: name });

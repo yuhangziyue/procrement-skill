@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { FeedbackRow } from "../db/schema";
 import { markAdopted, vote } from "../db/feedback";
+import { Icon } from "./icons";
 import "./FeedbackBar.css";
 
 interface Props {
@@ -8,15 +9,15 @@ interface Props {
   sessionId: string;
   /** 已有的反馈（外层用 getFeedbackFor 拿到后传入） */
   current?: FeedbackRow;
-  /** 工具结果卡显示「✔ 已采用」切换（北极星辅助指标） */
+  /** 工具结果卡显示「已采用」切换（北极星辅助指标） */
   showAdopt?: boolean;
-  /** 点 👎 后选「教它正确做法」 */
+  /** 点「不对」后选「教它正确做法」 */
   onTeach?: () => void;
   /** 任何反馈落库后调用，外层刷新 current */
   onChange?: () => void;
 }
 
-/** 一行灰色的轻量反馈条：👍 / 👎 / (✔ 已采用)。hover 才显眼。 */
+/** 一行灰色的轻量反馈条：点赞 / 点踩 / (已采用)。hover 才显眼。 */
 export function FeedbackBar({ messageId, sessionId, current, showAdopt, onTeach, onChange }: Props) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState(current?.note ?? "");
@@ -52,7 +53,7 @@ export function FeedbackBar({ messageId, sessionId, current, showAdopt, onTeach,
     <div class={`fb-bar${noteOpen ? " fb-open" : ""}`}>
       <div class="fb-row">
         <button class={`fb-btn${v === 1 ? " fb-active" : ""}`} title="有用" aria-label="有用" aria-pressed={v === 1} onClick={() => cast(1)}>
-          👍
+          <Icon name="thumbUp" size={14} />
         </button>
         <button
           class={`fb-btn${v === -1 ? " fb-active" : ""}`}
@@ -61,11 +62,11 @@ export function FeedbackBar({ messageId, sessionId, current, showAdopt, onTeach,
           aria-pressed={v === -1}
           onClick={() => (v === -1 ? setNoteOpen(!noteOpen) : cast(-1))}
         >
-          👎
+          <Icon name="thumbDown" size={14} />
         </button>
         {showAdopt && (
           <button class={`fb-btn fb-adopt${adopted ? " fb-active" : ""}`} title="这个结果我用上了" aria-pressed={adopted} onClick={toggleAdopt}>
-            ✔ {adopted ? "已采用" : "采用"}
+            <Icon name="check" size={13} /> {adopted ? "已采用" : "采用"}
           </button>
         )}
       </div>

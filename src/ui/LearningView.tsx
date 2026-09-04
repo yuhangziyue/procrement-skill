@@ -21,6 +21,8 @@ import {
   type ItemStatus,
   type Progress,
 } from "../learning/progress";
+import { Icon, type IconName } from "./icons";
+import { BlindspotsTab } from "./BlindspotsTab";
 import "./LearningView.css";
 
 // 视觉语言跟 MaterialsPanel / KnowledgePanel 走：基础 .btn / .muted / .ok 来自 styles.css，
@@ -29,9 +31,10 @@ import "./LearningView.css";
 
 const STATUS_LABEL: Record<ItemStatus, string> = { todo: "没开始", doing: "在学", done: "学会了" };
 const STATUS_NEXT: Record<ItemStatus, ItemStatus> = { todo: "doing", doing: "done", done: "todo" };
-const TRACK_ICON: Record<Track, string> = { basics: "📐", system: "🖥", collab: "🤝", supplier: "📦" };
+// 赛道图标走统一 SVG 系统，界面里不留 emoji
+const TRACK_ICON: Record<Track, IconName> = { basics: "learning", system: "tutorial", collab: "phone", supplier: "truck" };
 
-type Mode = "week" | "track";
+type Mode = "week" | "track" | "blind";
 
 export function LearningView({
   onAskAgent,
@@ -101,6 +104,12 @@ export function LearningView({
     }
   };
 
+  /** 从「你的盲区」点关联条目 ⇒ 切回按周视图并展开那一条 */
+  const openItem = (itemId: string) => {
+    setMode("week");
+    setOpenId(itemId);
+  };
+
   const card = (item: LearningItem) => (
     <ItemCard
       key={item.id}
@@ -157,7 +166,7 @@ export function LearningView({
             <div key={r.track} class={`lv-track lv-track-${r.track}`}>
               <div class="lv-track-top">
                 <span class="lv-track-name">
-                  {TRACK_ICON[r.track]} {TRACK_LABELS[r.track]}
+                  <Icon name={TRACK_ICON[r.track]} size={14} /> {TRACK_LABELS[r.track]}
                 </span>
                 <span class="muted lv-track-count">
                   {r.done}/{r.total}
@@ -202,12 +211,19 @@ export function LearningView({
         <button class={`btn btn-sm${mode === "track" ? " btn-primary" : ""}`} onClick={() => setMode("track")}>
           按赛道
         </button>
+        <button class={`btn btn-sm${mode === "blind" ? " btn-primary" : ""}`} onClick={() => setMode("blind")}>
+          你的盲区
+        </button>
         <span class="muted lv-modes-hint">
-          每周不超过 {WEEKLY_MINUTES_CAP} 分钟 —— 你要上班，排满就等于排空。
+          {mode === "blind"
+            ? "聊天里冒出来的口径问题，小采边聊边记 —— 只记，不说教。"
+            : `每周不超过 ${WEEKLY_MINUTES_CAP} 分钟 —— 你要上班，排满就等于排空。`}
         </span>
       </div>
 
-      {mode === "week" ? (
+      {mode === "blind" ? (
+        <BlindspotsTab onAskAgent={onAskAgent} onOpenItem={openItem} />
+      ) : mode === "week" ? (
         <section class="lv-timeline">
           {weeks.map((w) => {
             const wDone = w.items.filter((i) => stats.doneIds.has(i.id)).length;
@@ -235,7 +251,7 @@ export function LearningView({
             <div key={t.id} class="lv-col">
               <div class={`lv-col-head lv-track-${t.id}`}>
                 <b>
-                  {TRACK_ICON[t.id]} {t.name}
+                  <Icon name={TRACK_ICON[t.id]} size={14} /> {t.name}
                 </b>
                 <span class="muted">{t.blurb}</span>
               </div>
@@ -298,7 +314,7 @@ function ItemCard({
     <article class={`lv-card lv-${status}${expanded ? " open" : ""}`}>
       <div class="lv-card-head">
         <button class="lv-card-title" onClick={onToggle} title={expanded ? "收起" : "展开"}>
-          {locked.length > 0 && <span class="lv-lock" title={`前置未完成：${locked.map((l) => l.title).join("、")}`}>🔒</span>}
+          {locked.length > 0 && <span class="lv-lock" title={`前置未完成：${locked.map((l) => l.title).join("、")}`}><Icon name="lock" size={13} tone="muted" /></span>}
           <span>{item.title}</span>
         </button>
         <div class="lv-card-right">
@@ -317,7 +333,7 @@ function ItemCard({
 
       {locked.length > 0 && (
         <p class="lv-locked-hint">
-          🔒 建议先学：{locked.map((l) => l.title).join("、")}。想先看也行，这里不拦你。
+          <Icon name="lock" size={13} tone="muted" /> 建议先学：{locked.map((l) => l.title).join("、")}。想先看也行，这里不拦你。
         </p>
       )}
 
@@ -371,7 +387,7 @@ function ItemCard({
                   title={`${n} 星`}
                   onClick={() => onRate(score === n ? null : n)}
                 >
-                  ★
+                  <Icon name="star" size={14} />
                 </button>
               ))}
               <span class="muted lv-rate-hint">{score == null ? "可以不填 —— 这里不打分、不排名" : `${score} 星`}</span>

@@ -3,6 +3,7 @@
 // 所以把「工作日估算 / 复制剪贴板 / 业务日格式化 / 分数分级」这些纯函数放在这里，谁用谁 import。
 import { useState } from "preact/hooks";
 import type { BoardTask, Stage } from "../board/types";
+import { Icon } from "./icons";
 
 /** 中文星期，业务日格式化用，不额外拉 date-fns 的 locale 子包。 */
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -33,12 +34,13 @@ export function workdaysBetween(fromStr: string, toStr: string): number {
   return count * sign;
 }
 
-/** 分数 → 三色分级。BoardTask 只落了 score，没有落 ScoreBreakdown.level，分级阈值参照苏姐 §4 示例反推。 */
-export function tierOf(score: number): { emoji: string; cls: string } {
-  if (score >= 100) return { emoji: "🔴", cls: "tier-red" };
-  if (score >= 70) return { emoji: "🟠", cls: "tier-orange" };
-  if (score >= 40) return { emoji: "🟡", cls: "tier-yellow" };
-  return { emoji: "🟢", cls: "tier-green" };
+/** 分数 → 四色分级。BoardTask 只落了 score，没有落 ScoreBreakdown.level，分级阈值参照苏姐 §4 示例反推。
+ * 不再用彩色圆点表情——分级颜色改由 BoardView.css 里 `.task-card.tier-*` 染左侧色条 + 分数徽章表达。 */
+export function tierOf(score: number): { cls: string } {
+  if (score >= 100) return { cls: "tier-red" };
+  if (score >= 70) return { cls: "tier-orange" };
+  if (score >= 40) return { cls: "tier-yellow" };
+  return { cls: "tier-green" };
 }
 
 export async function copyText(text: string): Promise<boolean> {
@@ -127,10 +129,19 @@ export function TaskCard({ task, bizDate, expanded, groupPeers, variant = "lane"
 
   return (
     <article class={`task-card ${tier.cls} ${variant === "top3" ? "task-card-top3" : ""} ${expanded ? "is-expanded" : ""} ${done ? "is-done" : ""}`}>
-      <div class="task-card-head" onClick={onToggleExpand}>
-        <span class="task-badge">{tier.emoji} {task.score}</span>
+      <div
+        class="task-card-head"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        onClick={onToggleExpand}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleExpand(); } }}
+      >
+        <span class="task-badge">{task.score}</span>
         <h4 class="task-title">{task.title}</h4>
-        <span class="task-caret">{expanded ? "⌃ 收起" : "⌄ 展开"}</span>
+        <span class={`task-caret${expanded ? " is-open" : ""}`} title={expanded ? "收起" : "展开"} aria-hidden="true">
+          <Icon name="chevronDown" size={15} />
+        </span>
       </div>
 
       {(anchors.length > 0 || groupPeers?.length) && (
@@ -138,7 +149,7 @@ export function TaskCard({ task, bizDate, expanded, groupPeers, variant = "lane"
           {anchors.map((a, i) => <span key={i} class="task-anchor">{a}</span>)}
           {!!groupPeers?.length && (
             <span class="task-anchor task-group-badge" title={`同一供应商，可一次沟通处理：${groupPeers.join("、")}`}>
-              🔗 可与 {groupPeers.length} 张单合并处理
+              <Icon name="link" size={12} /> 可与 {groupPeers.length} 张单合并处理
             </span>
           )}
         </div>
@@ -149,7 +160,9 @@ export function TaskCard({ task, bizDate, expanded, groupPeers, variant = "lane"
           {task.qty !== undefined && (
             <span class="task-metric">
               {QTY_LABEL[task.stage]} <b>{task.qty}</b>
-              <button class="btn-icon-inline" title="算式来源" onClick={(e) => { e.stopPropagation(); setShowInfo((v) => !v); }}>ⓘ</button>
+              <button class="btn-icon-inline" title="算式来源" aria-label="算式来源" onClick={(e) => { e.stopPropagation(); setShowInfo((v) => !v); }}>
+                <Icon name="info" size={14} />
+              </button>
             </span>
           )}
           {dueText && <span class={`task-due ${dueCls}`}>{task.dueDate} · {dueText}</span>}
@@ -169,7 +182,7 @@ export function TaskCard({ task, bizDate, expanded, groupPeers, variant = "lane"
         <button class="btn btn-sm" onClick={onToggleExpand}>怎么做</button>
         <button class="btn btn-sm" onClick={() => onAskAgent(`关于「${task.title}」，我该怎么处理？`)}>问采姐</button>
         <button class="btn btn-sm btn-primary" disabled={done} onClick={() => onStatus("done")}>
-          {done ? "✓ 已完成" : "✓ 干完了"}
+          <Icon name="check" size={14} /> {done ? "已完成" : "干完了"}
         </button>
       </div>
 

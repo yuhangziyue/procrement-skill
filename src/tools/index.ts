@@ -9,6 +9,7 @@ import { makeSaveSummaryTool } from "./save-summary";
 import { makeSaveEnhancementTool } from "./save-enhancement";
 import { arrivalNoticeTool, checkPoTool, lookupMaterialTool, trackStatusTool } from "./material-tools";
 import { searchKnowledgeTool } from "./search-knowledge";
+import { makeNoteBlindspotTool, makeRecordCorrectionTool } from "./blindspot";
 
 const CalcParams = Type.Object({
   item: Type.String({ description: "物料名称或存货编码" }),
@@ -112,5 +113,8 @@ export function buildTools(ctx: ToolContext): AgentTool<any>[] {
     trackStatusTool,
     makeSaveSummaryTool(ctx.sessionId),
     makeSaveEnhancementTool(ctx.sessionId),
+    // 盲区记录与纠错落卡：都只产出草稿，落库一律由用户在预览里拍板
+    makeNoteBlindspotTool(ctx.sessionId),
+    makeRecordCorrectionTool(ctx.sessionId),
   ];
 }

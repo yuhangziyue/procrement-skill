@@ -1,104 +1,115 @@
 /* 工作台看板样式。只加 .board-* / .task-* / .day-close-* 前缀类，沿用全局 --bg/--panel/--line/--text/--muted/--brand 等变量。
-   本项目已经因为「子项没设 min-width:0/min-height:0 撑破容器」踩过坑，这里的 grid 行/列全部显式给 minmax(0,1fr)。*/
+   本项目已经因为「子项没设 min-width:0/min-height:0 撑破容器」踩过坑，这里的 grid 行/列全部显式给 minmax(0,1fr)。
+   配色一律走 src/styles.css 里的令牌（--brand/--danger/--warn/--ok/--ink-2 / --ink-3 /--line/--card/--paper + 间距/圆角/阴影阶），
+   这里不再出现任何裸的十六进制色值。*/
 
-.board-view { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; height: 100%; padding: 16px 18px; overflow: hidden; }
+.board-view { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; min-height: 0; height: 100%; padding: var(--sp-4) var(--sp-5); overflow: hidden; }
 
 /* 空态：desktopOnly / loading / 无数据，三处共用同一套视觉 */
-.board-empty-state { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; color: var(--muted); }
-.board-empty-inline { flex: none; padding: 28px 16px; background: var(--panel); border: 1px dashed var(--line); border-radius: 12px; }
-.board-empty-icon { font-size: 30px; }
-.board-empty-state h3 { color: var(--text); margin: 4px 0 0; }
+.board-empty-state { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sp-2); color: var(--muted); }
+.board-empty-inline { flex: none; padding: 28px 16px; background: var(--panel); border: 1px dashed var(--line); border-radius: var(--r-3); }
+.board-empty-icon { color: var(--ink-3); display: flex; }
+.board-empty-state h3 { color: var(--text); margin: 4px 0 0; font-size: var(--fs-4); }
 .board-empty-state p { max-width: 480px; }
-.board-empty-actions { display: flex; gap: 10px; margin-top: 6px; }
+.board-empty-actions { display: flex; gap: var(--sp-3); margin-top: 6px; }
 
 /* 顶部：进度条 + 业务日期 */
-.board-topline { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.board-progress { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
-.board-progress-label { font-size: 13px; color: var(--muted); flex: none; }
+.board-topline { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.board-progress { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; flex: 1; }
+.board-progress-label { font-size: var(--fs-2); color: var(--muted); flex: none; }
 .board-progress-bar { width: 160px; max-width: 30vw; height: 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; flex: none; }
-.board-progress-fill { height: 100%; background: var(--brand); border-radius: 999px; transition: width .2s; }
-.board-progress-count { font-size: 13px; color: var(--muted); flex: none; }
-.board-topline-date { font-size: 13px; color: var(--muted); flex: none; white-space: nowrap; }
+.board-progress-fill { height: 100%; background: var(--brand); border-radius: 999px; transition: width var(--dur-2); }
+.board-progress-count { font-size: var(--fs-2); color: var(--muted); flex: none; }
+.board-topline-date { font-size: var(--fs-2); color: var(--muted); flex: none; white-space: nowrap; }
 
 /* 今天三件事：视觉上明显区别于泳道——底色更暖、卡片更宽、横向排布可换行 */
-.board-top3 { flex: none; background: var(--brand-soft); border: 1px solid #f3c7b8; border-radius: 12px; padding: 12px 14px; }
-.board-top3-title { margin: 0 0 10px; font-size: 15px; }
+.board-top3 { flex: none; background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--card)); border-radius: var(--r-3); padding: var(--sp-3) var(--sp-4); }
+.board-top3-title { margin: 0 0 10px; font-size: var(--fs-4); font-weight: 600; color: var(--brand-2); }
 .board-top3-empty { margin: 0; }
-.board-top3-list { display: flex; gap: 12px; flex-wrap: wrap; }
+.board-top3-list { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
 .board-top3-list .task-card { width: min(360px, 100%); }
 
 /* 四条泳道：≥1280 四栏；1040~1280 两栏两行；<1040 单栏。行高交给 flex:1，行内 minmax(0,1fr) 防止撑破 */
-.board-lanes { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.board-lanes { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); }
 @media (max-width: 1280px) { .board-lanes { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); } }
 @media (max-width: 1040px) { .board-lanes { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, auto); } }
 
-.board-lane { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.board-lane-head { flex: none; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-.board-lane-title { font-weight: 600; display: flex; align-items: baseline; gap: 6px; }
-.board-lane-count { font-size: 12px; font-weight: 400; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 1px 8px; }
-.board-lane-hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.board-lane-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+/* 泳道本身是纯留白分组，不需要额外阴影——边框已经够用来分隔，堆阴影反而会跟任务卡的重点抢视觉 */
+.board-lane { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-3); overflow: hidden; }
+.board-lane-head { flex: none; padding: 10px var(--sp-3); border-bottom: 1px solid var(--line); }
+.board-lane-title { font-weight: 600; display: flex; align-items: baseline; gap: 6px; color: var(--text); }
+.board-lane-count { font-size: var(--fs-1); font-weight: 400; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 1px 8px; font-variant-numeric: tabular-nums; }
+.board-lane-hint { font-size: var(--fs-1); color: var(--muted); margin-top: 2px; }
+.board-lane-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-2); }
 .board-lane-empty { margin: 0; text-align: center; padding: 12px 0; }
 
 .board-dropped-note { flex: none; margin: 0; }
 
-.board-footer { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; border-top: 1px solid var(--line); }
-.board-footer-actions { display: flex; gap: 8px; }
+.board-footer { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding-top: 4px; border-top: 1px solid var(--line); }
+.board-footer-actions { display: flex; gap: var(--sp-2); }
 
 /* ---- 任务卡（TaskCard） ---- */
-.task-card { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
-.task-card.tier-red { border-left-color: #cf1322; }
-.task-card.tier-orange { border-left-color: #d46b08; }
-.task-card.tier-yellow { border-left-color: #ad8b00; }
-.task-card.tier-green { border-left-color: #389e0d; }
-.task-card.is-done { opacity: .6; }
-.task-card.is-expanded { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+/* 优先级只靠左侧色条 + 分数徽章表达，卡片本身不整块染色——逾期/紧迫只染日期文字和这条色条，克制。 */
+.task-card { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--r-2); padding: 10px var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); transition: box-shadow var(--dur-2), border-color var(--dur-1); }
+.task-card.tier-red { border-left-color: var(--danger); }
+.task-card.tier-orange { border-left-color: color-mix(in srgb, var(--danger) 40%, var(--warn) 60%); }
+.task-card.tier-yellow { border-left-color: var(--warn); }
+.task-card.tier-green { border-left-color: var(--ok); }
+.task-card.is-done { opacity: .55; }
+.task-card.is-expanded { box-shadow: var(--shadow-2); }
 .task-card-top3 { padding: 12px 14px; }
 
-.task-card-head { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; min-width: 0; }
-.task-badge { flex: none; font-weight: 700; font-size: 13px; background: var(--bg); border-radius: 999px; padding: 2px 8px; }
-.task-title { margin: 0; flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; }
-.task-caret { flex: none; font-size: 12px; color: var(--muted); }
+.task-card-head { display: flex; align-items: flex-start; gap: var(--sp-2); cursor: pointer; min-width: 0; border-radius: var(--r-1); }
+.task-card-head:focus-visible { outline-offset: 3px; }
+.task-badge { flex: none; font-weight: 700; font-size: var(--fs-2); border-radius: 999px; padding: 2px 9px; background: var(--bg); color: var(--ink-2); }
+.task-card.tier-red .task-badge { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--card)); }
+.task-card.tier-orange .task-badge { color: color-mix(in srgb, var(--danger) 40%, var(--warn) 60%); background: color-mix(in srgb, var(--warn) 14%, var(--card)); }
+.task-card.tier-yellow .task-badge { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--card)); }
+.task-card.tier-green .task-badge { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--card)); }
+.task-title { margin: 0; flex: 1; min-width: 0; font-size: var(--fs-3); font-weight: 600; line-height: 1.4; color: var(--text); }
+.task-caret { flex: none; color: var(--ink-3); display: flex; transition: transform var(--dur-2); }
+.task-caret.is-open { transform: rotate(180deg); }
 
 .task-anchors { display: flex; flex-wrap: wrap; gap: 6px; }
-.task-anchor { font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
-.task-group-badge { color: var(--brand); border-color: #f3c7b8; background: var(--brand-soft); }
+.task-anchor { font-size: var(--fs-1); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+.task-group-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--brand-2); border-color: color-mix(in srgb, var(--brand) 30%, var(--card)); background: var(--brand-soft); }
 
-.task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; }
+.task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); font-size: var(--fs-3); }
 .task-metric { display: inline-flex; align-items: center; gap: 4px; }
 .task-metric b { color: var(--text); }
-.btn-icon-inline { border: 0; background: none; color: var(--brand); cursor: pointer; padding: 0 2px; font-size: 13px; }
+.btn-icon-inline { border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 2px; display: inline-flex; border-radius: var(--r-1); transition: color var(--dur-1), background var(--dur-1); }
+.btn-icon-inline:hover { color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }
 .task-due { color: var(--muted); }
-.task-due.due-overdue { color: #cf1322; font-weight: 600; }
-.task-due.due-soon { color: #d46b08; font-weight: 600; }
+.task-due.due-overdue { color: var(--danger); font-weight: 600; }
+.task-due.due-soon { color: var(--warn); font-weight: 600; }
 
-.task-info-pop { font-size: 13px; background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.task-info-pop { font-size: var(--fs-3); background: var(--bg); border: 1px dashed var(--line); border-radius: var(--r-1); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .task-info-line { color: var(--text); }
 
-.task-donerule { font-size: 13px; color: var(--muted); }
+.task-donerule { font-size: var(--fs-3); color: var(--muted); }
 
-.task-actions { display: flex; gap: 8px; }
-.btn-sm { padding: 4px 10px; font-size: 13px; }
+.task-actions { display: flex; gap: var(--sp-2); }
+.btn-sm { padding: 4px 10px; font-size: var(--fs-3); }
 
-.task-detail { border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 10px; }
-.task-detail-sec h5 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
-.task-detail-sec ul { margin: 0; padding-left: 18px; line-height: 1.6; font-size: 13px; }
+.task-detail { border-top: 1px dashed var(--line); padding-top: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-3); }
+.task-detail-sec h5 { margin: 0 0 6px; font-size: var(--fs-1); color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.task-detail-sec ul { margin: 0; padding-left: 18px; line-height: 1.6; font-size: var(--fs-3); }
 .task-steps { list-style: none; padding-left: 0; }
 .task-steps li { margin-bottom: 4px; }
 .task-steps label { display: flex; align-items: flex-start; gap: 6px; cursor: pointer; }
 .task-steps input { margin-top: 3px; flex: none; }
 .task-steps .is-checked { text-decoration: line-through; color: var(--muted); }
-.task-step-where { color: var(--muted); font-size: 12px; }
-.task-escalation { font-size: 13px; line-height: 1.6; background: var(--bg); border-radius: 8px; padding: 8px 10px; margin: 0 0 6px; }
+.task-step-where { color: var(--muted); font-size: var(--fs-1); }
+.task-escalation { font-size: var(--fs-3); line-height: 1.6; background: var(--bg); border-radius: var(--r-1); padding: 8px 10px; margin: 0 0 6px; }
 
 /* ---- 收工完成态（DayClose） ---- */
-.day-close { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; align-items: center; text-align: center; padding: 20px 10px; }
-.day-close-hero h2 { margin: 4px 0 2px; }
-.day-close-check { font-size: 34px; }
-.day-close-block { width: min(640px, 100%); text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.day-close { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-4); align-items: center; text-align: center; padding: var(--sp-5) 10px; }
+.day-close-hero h2 { margin: 4px 0 2px; font-size: var(--fs-5); }
+.day-close-check { color: var(--ok); display: flex; }
+.day-close-block { width: min(640px, 100%); text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-2); padding: 12px var(--sp-3); }
 .day-close-block h4 { margin: 0 0 8px; }
 .day-close-block ul { margin: 0; padding-left: 20px; line-height: 1.7; }
 .day-close-handover { border-color: var(--brand); }
-.day-close-handover-text { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 10px 12px; line-height: 1.6; }
-.day-close-handover-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.day-close-handover-text { white-space: pre-wrap; background: var(--bg); border-radius: var(--r-1); padding: 10px 12px; line-height: 1.6; }
+.day-close-handover-actions { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-2); }
 .day-close-btn { width: min(240px, 100%); }

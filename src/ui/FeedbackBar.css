@@ -1,16 +1,16 @@
-/* 反馈条：一行、灰、hover 才显眼。只用 .fb-* 前缀。 */
-.fb-bar { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; font-size: 12px; color: var(--muted); }
-.fb-row { display: flex; align-items: center; gap: 2px; opacity: .35; transition: opacity .15s; }
+/* 反馈条：一行、灰、hover 才显眼。只用 .fb-* 前缀，配色走令牌。 */
+.fb-bar { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; font-size: var(--fs-1); color: var(--muted); }
+.fb-row { display: flex; align-items: center; gap: 2px; opacity: .35; transition: opacity var(--dur-2); }
 .fb-bar:hover .fb-row, .fb-bar.fb-open .fb-row, .fb-row:focus-within { opacity: 1; }
 .fb-bar:has(.fb-active) .fb-row { opacity: .7; }
 
-.fb-btn { background: none; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; color: var(--muted); font-size: 13px; line-height: 1.3; }
+.fb-btn { background: none; border: 1px solid transparent; border-radius: var(--r-1); padding: 3px 7px; color: var(--muted); font-size: var(--fs-2); line-height: 1.3; display: inline-flex; align-items: center; gap: 4px; transition: background var(--dur-1), border-color var(--dur-1), color var(--dur-1); }
 .fb-btn:hover { background: var(--bg); border-color: var(--line); color: var(--text); }
-.fb-btn.fb-active { color: var(--brand); border-color: var(--brand-soft); background: var(--brand-soft); }
-.fb-adopt { font-size: 12px; }
-.fb-adopt.fb-active { color: #237804; background: #f0f9e8; border-color: #d3ecc0; }
+.fb-btn.fb-active { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 30%, var(--card)); background: var(--brand-soft); }
+.fb-adopt { font-size: var(--fs-1); }
+.fb-adopt.fb-active { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, var(--card)); border-color: color-mix(in srgb, var(--ok) 30%, var(--card)); }
 
 .fb-note { display: flex; gap: 6px; align-items: center; }
-.fb-note input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 13px; }
-.fb-text { font-size: 12px; white-space: nowrap; }
+.fb-note input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-1); padding: 4px 8px; font-size: var(--fs-2); }
+.fb-text { font-size: var(--fs-1); white-space: nowrap; }
 .fb-teach { color: var(--brand); }

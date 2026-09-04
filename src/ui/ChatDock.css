@@ -1,0 +1,69 @@
+/* 悬浮聊天窗。样式独立成文件，避免和全局 styles.css 抢同一处规则。 */
+
+/* 主界面不再为聊天预留一整列——这是浮窗化的直接收益 */
+.shell { grid-template-columns: auto minmax(0, 1fr); }
+
+.chat-fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 40;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 16px 11px 13px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--brand, #a8462e); color: #fff; font: inherit; font-size: 13px; font-weight: 600;
+  box-shadow: 0 6px 20px rgba(26, 29, 38, .22), 0 1px 2px rgba(26, 29, 38, .18);
+  transition: transform .14s ease, box-shadow .14s ease;
+}
+.chat-fab:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(26, 29, 38, .26); }
+.chat-fab:active { transform: translateY(0); }
+.chat-fab:focus-visible { outline: 3px solid var(--brand, #a8462e); outline-offset: 3px; }
+.chat-fab-label { letter-spacing: .02em; }
+
+.chat-dock {
+  position: fixed; z-index: 45; display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  background: var(--card, #fff); border: 1px solid var(--line, #e3dfd8); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 18px 50px rgba(26, 29, 38, .22), 0 2px 6px rgba(26, 29, 38, .10);
+}
+/* 拖动中禁掉选中与命中测试，否则指针一快就会选中聊天里的文字 */
+body.dock-dragging { user-select: none; cursor: grabbing; }
+body.dock-dragging .chat-dock { transition: none; }
+
+.dock-bar {
+  display: flex; align-items: center; gap: 8px; flex: none; cursor: grab;
+  padding: 8px 8px 8px 10px; border-bottom: 1px solid var(--line, #e3dfd8); background: var(--paper, #f6f5f2);
+}
+body.dock-dragging .dock-bar { cursor: grabbing; }
+.dock-grip { color: var(--ink-3, #8a8f9a); display: flex; }
+.dock-title {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px; font-weight: 600; color: var(--ink, #1a1d26);
+}
+.dock-actions { display: flex; align-items: center; gap: 2px; }
+.dock-sep { width: 1px; height: 16px; background: var(--line, #e3dfd8); margin: 0 4px; }
+
+.ico-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px;
+  background: transparent; color: var(--ink-2, #525865); cursor: pointer;
+}
+.ico-btn:hover:not(:disabled) { background: rgba(26, 29, 38, .07); color: var(--ink, #1a1d26); }
+.ico-btn:disabled { opacity: .35; cursor: default; }
+.ico-btn:focus-visible { outline: 2px solid var(--brand, #a8462e); outline-offset: 1px; }
+.ico-btn.danger:hover { background: rgba(192, 57, 43, .12); color: var(--danger, #c0392b); }
+
+.dock-sessions { max-height: 42%; overflow: auto; border-bottom: 1px solid var(--line, #e3dfd8); flex: none; }
+.dock-hint {
+  display: flex; align-items: flex-start; gap: 7px; flex: none;
+  padding: 8px 12px; font-size: 12.5px; line-height: 1.6;
+  background: #fdf6e6; border-bottom: 1px solid #f0e2bf; color: #7a5c12;
+}
+.chat-dock .messages { flex: 1; min-height: 0; overflow: auto; }
+.chat-dock .composer { flex: none; }
+
+.dock-resize {
+  position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize;
+  background:
+    linear-gradient(135deg, transparent 0 46%, var(--ink-3, #8a8f9a) 46% 54%, transparent 54%),
+    linear-gradient(135deg, transparent 0 72%, var(--ink-3, #8a8f9a) 72% 80%, transparent 80%);
+  opacity: .5;
+}
+.dock-resize:hover { opacity: .9; }
+
+@media (prefers-reduced-motion: reduce) { .chat-fab { transition: none; } }

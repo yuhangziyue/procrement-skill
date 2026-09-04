@@ -5,14 +5,14 @@
 
 .tut-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .tut-tabs { display: flex; gap: 6px; }
-.tut-tab { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--muted); }
+.tut-tab { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--muted); }
 .tut-tab.active { background: var(--brand); border-color: var(--brand); color: #fff; }
 .tut-tab-count { font-size: 11px; opacity: .85; }
 .tut-search { flex: 1; min-width: 180px; max-width: 320px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; background: var(--panel); }
 
 /* 可信度图例：讲眼放在顶部，三种状态用色块区分 */
 .tut-legend { flex: none; display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; }
-.tut-legend-item { border-radius: 999px; padding: 3px 10px; border: 1px solid var(--line); }
+.tut-legend-item { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--line); }
 .tut-conf-verified { background: #f6ffed; color: #237804; border-color: #b7eb8f; }
 .tut-conf-unverified { background: #fffbe6; color: #874d00; border-color: #f5c542; }
 .tut-conf-unknown { background: #fff1f0; color: #a8071a; border-color: #ffccc7; }
@@ -25,17 +25,20 @@
 .tut-nav-empty { padding: 8px; }
 .tut-nav-group { margin-bottom: 12px; }
 .tut-nav-group:last-child { margin-bottom: 0; }
-.tut-nav-group-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; }
+.tut-nav-intro { margin: 2px 4px 10px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.tut-nav-group-title { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text); letter-spacing: .02em; margin: 4px 0 2px; }
+.tut-nav-group-n { flex: none; width: 17px; height: 17px; border-radius: 50%; background: var(--brand-soft, #f6e7e1); color: var(--brand, #A8462E); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.tut-nav-group-hint { font-size: 11.5px; line-height: 1.5; color: var(--muted); margin: 0 0 6px 23px; }
 .tut-nav-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .tut-nav-item { width: 100%; display: flex; align-items: center; gap: 6px; text-align: left; background: none; border: 1px solid transparent; border-radius: 8px; padding: 7px 8px; font-size: 13px; color: var(--text); }
 .tut-nav-item:hover { background: var(--bg); }
 .tut-nav-item.active { background: var(--brand-soft); border-color: #f3c7b8; }
 .tut-nav-item-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tut-freq { flex: none; font-size: 11px; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 1px 6px; }
-.tut-done-mark { flex: none; color: #237804; font-weight: 700; }
+.tut-done-mark { flex: none; display: inline-flex; }
 
-/* 徽章（✅/⚠️/❌），左侧目录、正文标题、每一步都用同一套 */
-.tut-badge { flex: none; display: inline-flex; align-items: center; border-radius: 999px; padding: 0 6px; font-size: 12px; border: 1px solid var(--line); }
+/* 可信度徽章（图标 + 可选文字），左侧目录、正文标题、每一步都用同一套 */
+.tut-badge { flex: none; display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 7px; font-size: 12px; line-height: 1.4; border: 1px solid var(--line); }
 .tut-badge.tut-conf-verified { background: #f6ffed; border-color: #b7eb8f; }
 .tut-badge.tut-conf-unverified { background: #fffbe6; border-color: #f5c542; }
 .tut-badge.tut-conf-unknown { background: #fff1f0; border-color: #ffccc7; }
@@ -47,7 +50,18 @@
 .tut-article-tags { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .tut-tag { font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--text); }
 
-.tut-goal, .tut-scene { margin: 0; font-size: 14px; line-height: 1.6; }
+.tut-goal, .tut-scene { margin: 0; font-size: 14px; line-height: 1.65; }
+.tut-scene { background: var(--bg); border-left: 3px solid var(--brand, #A8462E); border-radius: 0 8px 8px 0; padding: 8px 12px; }
+.tut-tag-stage { background: var(--brand-soft, #f6e7e1); border-color: #f3c7b8; }
+.tut-tag { display: inline-flex; align-items: center; gap: 4px; }
+
+/* 学习路径：先读 / 接着通常要 —— 这是「教程不是孤岛」的落点 */
+.tut-path { display: flex; flex-direction: column; gap: 6px; }
+.tut-path-foot { margin-top: 2px; }
+.tut-path-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; }
+.tut-path-label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); flex: none; }
+.tut-path-btn { border: 1px dashed var(--line); background: var(--bg); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; color: var(--text); }
+.tut-path-btn:hover { border-style: solid; border-color: var(--brand, #A8462E); color: var(--brand, #A8462E); }
 
 .tut-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .tut-step { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
@@ -58,9 +72,9 @@
 .tut-step-detail { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--text); }
 
 /* 图位占位框：虚线框，提醒这里要截图，不是真的图 */
-.tut-shot-box { border: 1.5px dashed #b7bfca; border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--muted); background: #fff; }
+.tut-shot-box { display: flex; align-items: flex-start; gap: 6px; border: 1.5px dashed #b7bfca; border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.55; color: var(--muted); background: #fff; }
 
-.tut-step-pitfall { background: #fffbe6; border: 1px solid #f5c542; color: #874d00; border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.tut-step-pitfall { display: flex; align-items: flex-start; gap: 6px; background: #fffbe6; border: 1px solid #f5c542; color: #874d00; border-radius: 8px; padding: 6px 10px; font-size: 13px; line-height: 1.55; }
 
 .tut-checkpoints { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; }
 
@@ -78,10 +92,25 @@
 /* 常见坑速查 / 待实机核对清单：两个独立 Tab，不用左右分栏，全宽卡片流 */
 .tut-flat { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .tut-pitfall-card { border: 1px solid #f5c542; background: #fffbe6; border-radius: 10px; padding: 10px 14px; }
-.tut-pitfall-title { font-weight: 600; color: #874d00; }
+.tut-pitfall-title { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #874d00; }
 .tut-pitfall-detail { margin: 4px 0; font-size: 13.5px; line-height: 1.6; }
 .tut-pitfall-source { margin: 0; font-size: 12px; color: var(--muted); }
 
 .tut-oq-card { border: 1px solid #ffccc7; background: #fff1f0; border-radius: 10px; padding: 10px 14px; }
-.tut-oq-question { font-weight: 600; color: #a8071a; }
+.tut-oq-question { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #a8071a; }
 .tut-oq-why, .tut-oq-how { margin: 4px 0 0; font-size: 13.5px; line-height: 1.6; }
+
+/* 权威信源库：按 kind 分组的卡片流。出版信息待核的用左侧黄边显式标出来 */
+.tut-src-group { display: flex; flex-direction: column; gap: 8px; }
+.tut-src-group-title { display: flex; align-items: center; gap: 7px; margin: 6px 0 0; font-size: 14px; }
+.tut-src-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.tut-src-card { border: 1px solid var(--line); border-left: 3px solid var(--ok, #2e7355); border-radius: 10px; padding: 10px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 6px; }
+.tut-src-card.unverified { border-left-color: #f5c542; background: #fffdf5; }
+.tut-src-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tut-src-title { font-weight: 600; font-size: 13.5px; line-height: 1.45; }
+.tut-src-meta { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.tut-src-why { margin: 0; font-size: 13px; line-height: 1.6; }
+.tut-src-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+.tut-src-covers { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tut-src-link { display: inline-flex; align-items: center; gap: 4px; color: var(--brand, #A8462E); text-decoration: none; }
+.tut-src-link:hover { text-decoration: underline; }

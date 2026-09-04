@@ -22,10 +22,26 @@ app.whenReady().then(async () => {
     const r = { ok: [], bad: [] };
     const t = (name, cond) => (cond ? r.ok : r.bad).push(name);
     t("preload 通道存在", !!window.xiaocai?.isDesktop);
+    // 白屏哨兵：2026-09-04 把网页版构建（绝对 base）打进 .app，file:// 下资源 404，整页空白。
+    // 打包前有产物门禁，这里再兜一道——渲染层真的挂上东西了才算数。
+    const root = document.getElementById("app") || document.body.firstElementChild;
+    t("渲染层非空(白屏哨兵)", !!root && root.querySelectorAll("*").length > 30);
+    t("无资源加载失败", !performance.getEntriesByType("resource").some((r) => r.responseStatus >= 400));
     const nav = document.querySelectorAll(".rail-item").length;
     t("一级导航渲染(5 项)", nav === 5);
     t("看板主区渲染", !!document.querySelector(".board, .board-view, [class*='board']"));
-    t("采姐侧栏常驻", !!document.querySelector(".shell-chat"));
+    // 聊天已从常驻侧栏改为悬浮窗：默认收起只有召唤按钮，点开才出浮窗
+    const fab = document.querySelector(".chat-fab");
+    t("采姐悬浮入口存在", !!fab);
+    if (fab) {
+      fab.click();
+      await new Promise((r) => setTimeout(r, 400));
+      const dock = document.querySelector(".chat-dock");
+      t("浮窗可打开且带操作栏", !!dock && !!dock.querySelector(".dock-bar"));
+      const closeBtn = dock && dock.querySelector(".ico-btn.danger");
+      if (closeBtn) { closeBtn.click(); await new Promise((r) => setTimeout(r, 300)); }
+      t("浮窗可关闭", !document.querySelector(".chat-dock"));
+    }
     try {
       await window.xiaocai.call("table.put", "settings", [{ key: "__smoke", value: { n: 1 } }]);
       const got = await window.xiaocai.call("table.get", "settings", "__smoke");
