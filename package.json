@@ -1,7 +1,7 @@
 {
   "name": "xiaocai",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "小采 · 采购新人的 AI 师姐 —— macOS 桌面工作台（SQLite 本地库）+ 网页版",
   "engines": {
