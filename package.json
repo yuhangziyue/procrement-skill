@@ -18,7 +18,8 @@
     "desktop": "node scripts/desktop-dev.mjs",
     "build:electron": "tsc --noEmit && ELECTRON=1 vite build",
     "dist:mac": "npm run build:electron && electron-builder --mac",
-    "smoke:desktop": "ELECTRON=1 vite build && node scripts/desktop-smoke.mjs"
+    "smoke:desktop": "ELECTRON=1 vite build && node scripts/desktop-smoke.mjs",
+    "dist:mac:share": "XIAOCAI_NO_BUNDLED_KEY=1 npm run build:electron && XIAOCAI_NO_BUNDLED_KEY=1 electron-builder --mac"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.84.4",

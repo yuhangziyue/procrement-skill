@@ -12,7 +12,10 @@ const isElectron = !!process.env.ELECTRON;
  * 一旦烤进去等于把 Key 挂到公网。所以这里用 isElectron 卡死，而不是靠"记得别构建网页版"。
  * 源码里也不写死 Key —— 它只存在于 gitignore 掉的 .env.local 和本机打出来的 .app 里。
  */
-const bundledKey = isElectron ? (loadEnv("production", process.cwd(), "VITE_").VITE_ARK_API_KEY ?? "") : "";
+// 分发给别人的包必须用 XIAOCAI_NO_BUNDLED_KEY=1 构建：内置 Key 只适合自己这台机器，
+// 跟着安装包发出去等于把额度交给对方，且撤不回来（只能作废重申请）。
+const noBundledKey = process.env.XIAOCAI_NO_BUNDLED_KEY === "1";
+const bundledKey = isElectron && !noBundledKey ? (loadEnv("production", process.cwd(), "VITE_").VITE_ARK_API_KEY ?? "") : "";
 
 export default defineConfig({
   base: isElectron ? "./" : "/procrement-skill/",
